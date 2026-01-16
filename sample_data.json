@@ -1,0 +1,42 @@
+[
+  {
+    "series_id": "AAPL",
+    "timestamp": "2024-01-15T09:30:00",
+    "measurements": {
+      "open": 185.50,
+      "high": 186.20,
+      "low": 185.10,
+      "close": 185.85,
+      "vol": 12345678
+    },
+    "metadata": {
+      "units": {"close": "USD"}
+    },
+    "format": "yahoo"
+  },
+  {
+    "series_id": "MSFT",
+    "timestamp": "2024-01-15T09:30:00",
+    "measurements": {
+      "open": 380.25,
+      "high": 382.10,
+      "low": 379.80,
+      "close": 381.50,
+      "vol": 9876543
+    },
+    "format": "yahoo"
+  },
+  {
+    "series_id": "WEATHER-STATION-001",
+    "timestamp": "2024-01-15T09:30:00",
+    "measurements": {
+      "temperature": 22.5,
+      "humidity": 60,
+      "pressure": 1013.25
+    },
+    "metadata": {
+      "units": {"temperature": "Celsius", "humidity": "%", "pressure": "hPa"}
+    },
+    "format": "custom"
+  }
+]

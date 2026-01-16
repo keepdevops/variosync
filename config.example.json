@@ -1,0 +1,47 @@
+{
+  "Data": {
+    "db_path": "variosync_data.duckdb",
+    "csv_dir": "data",
+    "json_dir": "data/json",
+    "parquet_dir": "data/parquet",
+    "cache_size": 1000,
+    "thread_count": 4,
+    "storage_backend": "local",
+    "storage_bucket": null
+  },
+  "Display": {
+    "rows_per_page": 100,
+    "auto_refresh": 0,
+    "theme": "default",
+    "font_size": 10
+  },
+  "Download": {
+    "timeout": 30,
+    "max_retries": 3,
+    "rate_limit_delay": 1.0,
+    "batch_size": 50
+  },
+  "Logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    "file": "variosync.log"
+  },
+  "Performance": {
+    "enable_monitoring": true,
+    "memory_limit": 1024,
+    "cpu_limit": 80
+  },
+  "Supabase": {
+    "url": "https://your-project.supabase.co",
+    "key": "your-anon-key",
+    "service_role_key": null,
+    "require_supabase": false
+  },
+  "Authentication": {
+    "method": "supabase",
+    "license_key_format": "uuid",
+    "enforce_payment": true,
+    "require_license_validation": false,
+    "development_mode": false
+  }
+}

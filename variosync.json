@@ -1,0 +1,990 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": “VARIOSYNC Data Template",
+  "description": "Comprehensive JSON template for VARIOSYNC time-series data processing system. Refactored for scalable cloud-native SaaS with Supabase, Docker, and modern authentication.",
+  "version": "2.1.0",
+  
+  "definitions": {
+    "timeSeriesDataRecord": {
+      "type": "object",
+      "description": "Generalized time-series data record. Supports arbitrary measurements instead of fixed OHLCV fields, allowing for flexible schemas like financial, IoT, or performance metrics.",
+      "required": ["series_id", "timestamp", "measurements"],
+      "properties": {
+        "series_id": {
+          "type": "string",
+          "description": "Unique identifier for the time-series entity (e.g., stock ticker 'AAPL', sensor ID 'TEMP-001', website 'example.com')"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp (e.g., '2024-01-15T09:30:00'). Assumes UTC unless specified otherwise."
+        },
+        "measurements": {
+          "type": "object",
+          "description": "Key-value pairs of measured values at the timestamp. Keys are metric names (e.g., 'close', 'temperature', 'traffic_count'); values are numbers or strings.",
+          "additionalProperties": {
+            "anyOf": [
+              { "type": "number" },
+              { "type": "string" },
+              { "type": "integer" }
+            ]
+          },
+          "minProperties": 1
+        },
+        "metadata": {
+          "type": "object",
+          "description": "Optional additional context (e.g., units, source-specific info)",
+          "additionalProperties": true
+        },
+        "format": {
+          "type": "string",
+          "description": "Source format identifier",
+          "enum": ["csv", "json", "txt", "parquet", "feather", "duckdb", "stooq", "yahoo", "alpha_vantage", "finnhub", "massive", "prometheus", "influxdb", "custom"]
+        }
+      }
+    },
+    
+    "financialDataRecord": {
+      "type": "object",
+      "description": "Legacy financial data record (OHLCV format) - maintained for backward compatibility",
+      "required": ["ticker", "timestamp", "close"],
+      "properties": {
+        "ticker": {
+          "type": "string",
+          "description": "Stock ticker symbol (e.g., 'AAPL', 'MSFT')"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp (e.g., '2024-01-15T09:30:00')"
+        },
+        "open": {
+          "type": "number",
+          "description": "Opening price",
+          "minimum": 0
+        },
+        "high": {
+          "type": "number",
+          "description": "Highest price",
+          "minimum": 0
+        },
+        "low": {
+          "type": "number",
+          "description": "Lowest price",
+          "minimum": 0
+        },
+        "close": {
+          "type": "number",
+          "description": "Closing price",
+          "minimum": 0
+        },
+        "vol": {
+          "type": "integer",
+          "description": "Trading volume",
+          "minimum": 0
+        },
+        "openint": {
+          "type": "integer",
+          "description": "Open interest (for futures/options)",
+          "minimum": 0
+        },
+        "format": {
+          "type": "string",
+          "description": "Source format identifier",
+          "enum": ["csv", "json", "txt", "parquet", "feather", "duckdb", "stooq", "yahoo", "alpha_vantage", "finnhub", "massive"]
+        }
+      }
+    },
+    
+    "supabaseConfig": {
+      "type": "object",
+      "description": "Supabase database and authentication configuration",
+      "required": ["url", "key"],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Supabase project URL (e.g., 'https://your-project.supabase.co')"
+        },
+        "key": {
+          "type": "string",
+          "description": "Supabase anon or service role key"
+        },
+        "service_role_key": {
+          "type": "string",
+          "description": "Supabase service role key (for admin operations)"
+        },
+        "require_supabase": {
+          "type": "boolean",
+          "default": false,
+          "description": "Require Supabase connection (fail-closed if unavailable)"
+        }
+      }
+    },
+    
+    "authenticationConfig": {
+      "type": "object",
+      "description": "Authentication and license validation configuration",
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": ["supabase", "license_server", "none"],
+          "default": "supabase",
+          "description": "Authentication method to use"
+        },
+        "license_key_format": {
+          "type": "string",
+          "enum": ["uuid", "email", "custom"],
+          "default": "uuid",
+          "description": "Format of license keys (UUID = Supabase user ID, email = user email, custom = legacy keys)"
+        },
+        "enforce_payment": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enforce hour checking (block access if no hours remaining)"
+        },
+        "require_license_validation": {
+          "type": "boolean",
+          "default": false,
+          "description": "Require license validation (fail-closed if validation unavailable)"
+        },
+        "development_mode": {
+          "type": "boolean",
+          "default": false,
+          "description": "Development mode (allows access without validation)"
+        }
+      }
+    },
+    
+    "appConfiguration": {
+      "type": "object",
+      "description": "Application configuration structure. Updated for cloud-native deployment.",
+      "properties": {
+        "Data": {
+          "type": "object",
+          "properties": {
+            "db_path": {
+              "type": "string",
+              "default": "redline_data.duckdb",
+              "description": "Path to DuckDB database file (local development only)"
+            },
+            "csv_dir": {
+              "type": "string",
+              "default": "data",
+              "description": "Directory for CSV files (local development only)"
+            },
+            "json_dir": {
+              "type": "string",
+              "default": "data/json",
+              "description": "Directory for JSON files (local development only)"
+            },
+            "parquet_dir": {
+              "type": "string",
+              "default": "data/parquet",
+              "description": "Directory for Parquet files (local development only)"
+            },
+            "cache_size": {
+              "type": "integer",
+              "default": 1000,
+              "minimum": 1,
+              "description": "Cache size for data operations"
+            },
+            "thread_count": {
+              "type": "integer",
+              "default": 4,
+              "minimum": 1,
+              "maximum": 32,
+              "description": "Number of threads for parallel processing"
+            },
+            "storage_backend": {
+              "type": "string",
+              "enum": ["local", "s3", "wasabi", "supabase_storage"],
+              "default": "local",
+              "description": "Storage backend for data files"
+            },
+            "storage_bucket": {
+              "type": "string",
+              "description": "S3/Wasabi bucket name (if using object storage)"
+            }
+          }
+        },
+        "Display": {
+          "type": "object",
+          "properties": {
+            "rows_per_page": {
+              "type": "integer",
+              "default": 100,
+              "minimum": 1,
+              "description": "Number of rows to display per page"
+            },
+            "auto_refresh": {
+              "type": "integer",
+              "default": 0,
+              "description": "Auto-refresh interval in seconds (0 = disabled)"
+            },
+            "theme": {
+              "type": "string",
+              "default": "default",
+              "enum": ["default", "clam", "alt", "classic", "vista", "xpnative"],
+              "description": "UI theme name"
+            },
+            "font_size": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 8,
+              "maximum": 24,
+              "description": "Font size in points"
+            }
+          }
+        },
+        "Download": {
+          "type": "object",
+          "properties": {
+            "timeout": {
+              "type": "integer",
+              "default": 30,
+              "minimum": 1,
+              "description": "Request timeout in seconds"
+            },
+            "max_retries": {
+              "type": "integer",
+              "default": 3,
+              "minimum": 0,
+              "description": "Maximum number of retry attempts"
+            },
+            "rate_limit_delay": {
+              "type": "number",
+              "default": 1.0,
+              "minimum": 0,
+              "description": "Delay between requests in seconds"
+            },
+            "batch_size": {
+              "type": "integer",
+              "default": 50,
+              "minimum": 1,
+              "description": "Number of entities/series to process in a batch"
+            }
+          }
+        },
+        "Logging": {
+          "type": "object",
+          "properties": {
+            "level": {
+              "type": "string",
+              "default": "INFO",
+              "enum": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+              "description": "Logging level"
+            },
+            "format": {
+              "type": "string",
+              "default": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+              "description": "Log message format"
+            },
+            "file": {
+              "type": "string",
+              "default": "redline.log",
+              "description": "Log file path"
+            }
+          }
+        },
+        "Performance": {
+          "type": "object",
+          "properties": {
+            "enable_monitoring": {
+              "type": "boolean",
+              "default": true,
+              "description": "Enable performance monitoring"
+            },
+            "memory_limit": {
+              "type": "integer",
+              "default": 1024,
+              "minimum": 1,
+              "description": "Memory limit in MB"
+            },
+            "cpu_limit": {
+              "type": "integer",
+              "default": 80,
+              "minimum": 1,
+              "maximum": 100,
+              "description": "CPU usage limit percentage"
+            }
+          }
+        },
+        "Supabase": {
+          "$ref": "#/definitions/supabaseConfig"
+        },
+        "Authentication": {
+          "$ref": "#/definitions/authenticationConfig"
+        }
+      }
+    },
+    
+    "apiDownloaderConfig": {
+      "type": "object",
+      "description": "Generic API downloader configuration. Refactored for non-financial APIs (e.g., weather, metrics).",
+      "required": ["name", "base_url", "endpoint", "api_key"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Downloader name (e.g., 'Alpha Vantage', 'OpenWeather', 'Prometheus')"
+        },
+        "base_url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Base URL of the API"
+        },
+        "endpoint": {
+          "type": "string",
+          "description": "API endpoint path"
+        },
+        "api_key": {
+          "type": "string",
+          "description": "API key for authentication"
+        },
+        "api_key_param": {
+          "type": "string",
+          "default": "apikey",
+          "description": "Query parameter name for API key"
+        },
+        "entity_param": {
+          "type": "string",
+          "default": "symbol",
+          "description": "Query parameter name for series/entity ID (e.g., 'symbol' for stocks, 'city' for weather)"
+        },
+        "ticker_param": {
+          "type": "string",
+          "default": "symbol",
+          "description": "Legacy: Query parameter name for ticker symbol (use entity_param instead)"
+        },
+        "start_date_param": {
+          "type": "string",
+          "default": "from",
+          "description": "Query parameter name for start date"
+        },
+        "end_date_param": {
+          "type": "string",
+          "default": "to",
+          "description": "Query parameter name for end date"
+        },
+        "date_format": {
+          "type": "string",
+          "default": "YYYY-MM-DD",
+          "description": "Date format string"
+        },
+        "response_format": {
+          "type": "string",
+          "default": "json",
+          "enum": ["json", "csv", "xml"],
+          "description": "Expected response format"
+        },
+        "data_path": {
+          "type": "string",
+          "default": "data",
+          "description": "JSON path to data array in response"
+        },
+        "column_mapping": {
+          "type": "object",
+          "description": "Mapping from API field names to standardized measurement keys (e.g., 'temp' to 'temperature')",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "example": {
+            "symbol": "series_id",
+            "date": "timestamp",
+            "openPrice": "open",
+            "temperature": "temp",
+            "humidity": "humidity"
+          }
+        },
+        "timeout": {
+          "type": "integer",
+          "default": 30,
+          "minimum": 1,
+          "description": "Request timeout in seconds"
+        },
+        "rate_limit_per_minute": {
+          "type": "integer",
+          "default": 60,
+          "minimum": 1,
+          "description": "Maximum requests per minute"
+        },
+        "output_dir": {
+          "type": "string",
+          "default": "data",
+          "description": "Output directory for downloaded files (local development only)"
+        },
+        "storage_backend": {
+          "type": "string",
+          "enum": ["local", "s3", "wasabi"],
+          "default": "local",
+          "description": "Storage backend for downloaded files"
+        }
+      }
+    },
+    
+    "analysisConfig": {
+      "type": "object",
+      "description": "Analysis and ML configuration. Generalized for arbitrary measurement keys.",
+      "properties": {
+        "features": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of measurement keys to use as features (e.g., ['temperature', 'humidity'] or ['open', 'close'])",
+          "example": ["temperature", "pressure", "vol"]
+        },
+        "format": {
+          "type": "string",
+          "enum": ["numpy", "tensorflow"],
+          "default": "numpy",
+          "description": "Output format for ML data"
+        },
+        "normalize": {
+          "type": "boolean",
+          "default": false,
+          "description": "Whether to normalize features"
+        },
+        "scaler": {
+          "type": "string",
+          "enum": ["standard", "minmax", "none"],
+          "default": "none",
+          "description": "Feature scaling method"
+        }
+      }
+    },
+    
+    "mlConfig": {
+      "type": "object",
+      "description": "Machine learning model configuration. Supports generic features.",
+      "properties": {
+        "model_type": {
+          "type": "string",
+          "enum": ["isolation_forest", "kmeans", "linear_regression", "custom"],
+          "description": "Type of ML model"
+        },
+        "parameters": {
+          "type": "object",
+          "description": "Model-specific parameters",
+          "additionalProperties": true
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Feature keys from measurements"
+        },
+        "target": {
+          "type": "string",
+          "description": "Target key for supervised learning (from measurements)"
+        },
+        "train_test_split": {
+          "type": "number",
+          "default": 0.8,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Train/test split ratio"
+        }
+      }
+    },
+    
+    "paymentConfig": {
+      "type": "object",
+      "description": "Payment configuration with Supabase integration.",
+      "properties": {
+        "stripe_secret_key": {
+          "type": "string",
+          "description": "Stripe secret key (from environment variable STRIPE_SECRET_KEY)"
+        },
+        "stripe_publishable_key": {
+          "type": "string",
+          "description": "Stripe publishable key (from environment variable STRIPE_PUBLISHABLE_KEY)"
+        },
+        "stripe_webhook_secret": {
+          "type": "string",
+          "description": "Stripe webhook secret (from environment variable STRIPE_WEBHOOK_SECRET)"
+        },
+        "hours_per_dollar": {
+          "type": "number",
+          "default": 0.2,
+          "minimum": 0,
+          "description": "Hours of usage per dollar (e.g., 0.2 = 1 hour costs $5)"
+        },
+        "currency": {
+          "type": "string",
+          "default": "usd",
+          "description": "Payment currency code"
+        },
+        "hour_packages": {
+          "type": "object",
+          "description": "Predefined hour packages (stored in Supabase subscription_plans table)",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "hours": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "price": {
+                "type": "number",
+                "minimum": 0
+              },
+              "name": {
+                "type": "string"
+              },
+              "stripe_price_id": {
+                "type": "string",
+                "description": "Stripe Price ID for checkout"
+              }
+            },
+            "required": ["hours", "price", "name"]
+          },
+          "example": {
+            "small": {
+              "hours": 5,
+              "price": 25,
+              "name": "5 Hours Pack",
+              "stripe_price_id": "price_xxx"
+            },
+            "medium": {
+              "hours": 10,
+              "price": 45,
+              "name": "10 Hours Pack",
+              "stripe_price_id": "price_yyy"
+            },
+            "large": {
+              "hours": 20,
+              "price": 80,
+              "name": "20 Hours Pack",
+              "stripe_price_id": "price_zzz"
+            },
+            "xlarge": {
+              "hours": 50,
+              "price": 180,
+              "name": "50 Hours Pack",
+              "stripe_price_id": "price_www"
+            }
+          }
+        },
+        "use_supabase": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use Supabase for hour tracking (replaces license server)"
+        }
+      }
+    },
+    
+    "environmentConfig": {
+      "type": "object",
+      "description": "Environment variable configuration for deployment",
+      "properties": {
+        "FLASK_ENV": {
+          "type": "string",
+          "enum": ["development", "production"],
+          "default": "development",
+          "description": "Flask environment"
+        },
+        "SECRET_KEY": {
+          "type": "string",
+          "description": "Flask secret key for sessions"
+        },
+        "PORT": {
+          "type": "integer",
+          "default": 5000,
+          "description": "Port to run Flask app on"
+        },
+        "SUPABASE_URL": {
+          "type": "string",
+          "format": "uri",
+          "description": "Supabase project URL"
+        },
+        "SUPABASE_KEY": {
+          "type": "string",
+          "description": "Supabase anon or service role key"
+        },
+        "REDIS_URL": {
+          "type": "string",
+          "default": "redis://localhost:6379/0",
+          "description": "Redis connection URL for Celery"
+        },
+        "CELERY_BROKER_URL": {
+          "type": "string",
+          "default": "redis://localhost:6379/0",
+          "description": "Celery broker URL"
+        },
+        "CELERY_RESULT_BACKEND": {
+          "type": "string",
+          "default": "redis://localhost:6379/0",
+          "description": "Celery result backend URL"
+        },
+        "AWS_ACCESS_KEY_ID": {
+          "type": "string",
+          "description": "AWS/Wasabi access key ID"
+        },
+        "AWS_SECRET_ACCESS_KEY": {
+          "type": "string",
+          "description": "AWS/Wasabi secret access key"
+        },
+        "AWS_ENDPOINT_URL": {
+          "type": "string",
+          "format": "uri",
+          "description": "S3-compatible endpoint URL (e.g., Wasabi)"
+        },
+        "AWS_BUCKET_NAME": {
+          "type": "string",
+          "default": "redline-data",
+          "description": "S3/Wasabi bucket name"
+        },
+        "CORS_ORIGINS": {
+          "type": "string",
+          "default": "http://localhost:8080,http://127.0.0.1:8080",
+          "description": "Comma-separated list of allowed CORS origins"
+        },
+        "REQUIRE_SUPABASE": {
+          "type": "boolean",
+          "default": false,
+          "description": "Require Supabase (fail-closed if unavailable)"
+        },
+        "ENFORCE_PAYMENT": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enforce hour checking"
+        },
+        "REQUIRE_LICENSE_VALIDATION": {
+          "type": "boolean",
+          "default": false,
+          "description": "Require license validation"
+        }
+      }
+    },
+    
+    "fileFormatMapping": {
+      "type": "object",
+      "description": "File extension to format mapping",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "example": {
+        ".csv": "csv",
+        ".json": "json",
+        ".txt": "txt",
+        ".duckdb": "duckdb",
+        ".parquet": "parquet",
+        ".feather": "feather",
+        ".h5": "keras",
+        ".npz": "tensorflow",
+        ".arrow": "pyarrow"
+      }
+    },
+    
+    "dataValidationSchema": {
+      "type": "object",
+      "description": "Data type validation schema. Generalized for dynamic measurements.",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "example": {
+        "series_id": "object",
+        "timestamp": "datetime64[ns]",
+        "measurements": "object"
+      }
+    },
+    
+    "stooqFormat": {
+      "type": "object",
+      "description": "Stooq format column mapping. Retained for backward compatibility.",
+      "properties": {
+        "<TICKER>": {
+          "type": "string",
+          "description": "Ticker symbol (legacy)"
+        },
+        "<ENTITY>": {
+          "type": "string",
+          "description": "Entity/series identifier (generalized)"
+        },
+        "<DATE>": {
+          "type": "string",
+          "format": "date",
+          "description": "Date in YYYYMMDD format"
+        },
+        "<TIME>": {
+          "type": "string",
+          "description": "Time in HHMMSS format (default: 000000)"
+        },
+        "<OPEN>": {
+          "type": "number",
+          "description": "Opening value (financial) or generic metric"
+        },
+        "<HIGH>": {
+          "type": "number",
+          "description": "Highest value or generic metric"
+        },
+        "<LOW>": {
+          "type": "number",
+          "description": "Lowest value or generic metric"
+        },
+        "<CLOSE>": {
+          "type": "number",
+          "description": "Closing value or generic metric"
+        },
+        "<VOL>": {
+          "type": "integer",
+          "description": "Volume or generic count metric"
+        }
+      }
+    }
+  },
+  
+  "examples": {
+    "timeSeriesData": {
+      "description": "Example generic time-series data record (financial compatibility)",
+      "value": {
+        "series_id": "AAPL",
+        "timestamp": "2024-01-15T09:30:00",
+        "measurements": {
+          "open": 185.50,
+          "high": 186.20,
+          "low": 185.10,
+          "close": 185.85,
+          "vol": 12345678
+        },
+        "metadata": {
+          "units": {"close": "USD"}
+        },
+        "format": "yahoo"
+      }
+    },
+    
+    "timeSeriesDataNonFinancial": {
+      "description": "Example non-financial time-series (e.g., weather sensor)",
+      "value": {
+        "series_id": "WEATHER-STATION-001",
+        "timestamp": "2024-01-15T09:30:00",
+        "measurements": {
+          "temperature": 22.5,
+          "humidity": 60,
+          "pressure": 1013.25
+        },
+        "metadata": {
+          "units": {"temperature": "Celsius", "humidity": "%", "pressure": "hPa"}
+        },
+        "format": "custom"
+      }
+    },
+    
+    "supabaseConfig": {
+      "description": "Example Supabase configuration",
+      "value": {
+        "url": "https://your-project.supabase.co",
+        "key": "your-anon-or-service-key",
+        "require_supabase": false
+      }
+    },
+    
+    "authenticationConfig": {
+      "description": "Example authentication configuration",
+      "value": {
+        "method": "supabase",
+        "license_key_format": "uuid",
+        "enforce_payment": true,
+        "require_license_validation": false,
+        "development_mode": false
+      }
+    },
+    
+    "appConfig": {
+      "description": "Example application configuration with Supabase",
+      "value": {
+        "Data": {
+          "db_path": "redline_data.duckdb",
+          "csv_dir": "data",
+          "json_dir": "data/json",
+          "parquet_dir": "data/parquet",
+          "cache_size": 1000,
+          "thread_count": 4,
+          "storage_backend": "wasabi",
+          "storage_bucket": "redline-data"
+        },
+        "Display": {
+          "rows_per_page": 100,
+          "auto_refresh": 0,
+          "theme": "default",
+          "font_size": 10
+        },
+        "Download": {
+          "timeout": 30,
+          "max_retries": 3,
+          "rate_limit_delay": 1.0,
+          "batch_size": 50
+        },
+        "Logging": {
+          "level": "INFO",
+          "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+          "file": "redline.log"
+        },
+        "Performance": {
+          "enable_monitoring": true,
+          "memory_limit": 1024,
+          "cpu_limit": 80
+        },
+        "Supabase": {
+          "url": "https://your-project.supabase.co",
+          "key": "your-anon-key",
+          "require_supabase": false
+        },
+        "Authentication": {
+          "method": "supabase",
+          "license_key_format": "uuid",
+          "enforce_payment": true
+        }
+      }
+    },
+    
+    "apiDownloader": {
+      "description": "Example API downloader configuration (generalized)",
+      "value": {
+        "name": "OpenWeather",
+        "base_url": "https://api.openweathermap.org/data/2.5",
+        "endpoint": "/history",
+        "api_key": "YOUR_API_KEY_HERE",
+        "api_key_param": "appid",
+        "entity_param": "q",
+        "start_date_param": "start",
+        "end_date_param": "end",
+        "date_format": "unix",
+        "response_format": "json",
+        "data_path": "hourly",
+        "column_mapping": {
+          "dt": "timestamp",
+          "main.temp": "temperature",
+          "main.humidity": "humidity"
+        },
+        "timeout": 30,
+        "rate_limit_per_minute": 60,
+        "output_dir": "data",
+        "storage_backend": "wasabi"
+      }
+    },
+    
+    "analysisConfig": {
+      "description": "Example analysis configuration",
+      "value": {
+        "features": ["temperature", "humidity", "pressure"],
+        "format": "numpy",
+        "normalize": true,
+        "scaler": "standard"
+      }
+    },
+    
+    "mlConfig": {
+      "description": "Example ML model configuration",
+      "value": {
+        "model_type": "isolation_forest",
+        "parameters": {
+          "contamination": 0.1,
+          "n_estimators": 100,
+          "random_state": 42
+        },
+        "features": ["temperature", "humidity", "pressure"],
+        "target": null,
+        "train_test_split": 0.8
+      }
+    },
+    
+    "paymentConfig": {
+      "description": "Example payment configuration with Supabase",
+      "value": {
+        "hours_per_dollar": 0.2,
+        "currency": "usd",
+        "use_supabase": true,
+        "hour_packages": {
+          "small": {
+            "hours": 5,
+            "price": 25,
+            "name": "5 Hours Pack",
+            "stripe_price_id": "price_xxx"
+          },
+          "medium": {
+            "hours": 10,
+            "price": 45,
+            "name": "10 Hours Pack",
+            "stripe_price_id": "price_yyy"
+          },
+          "large": {
+            "hours": 20,
+            "price": 80,
+            "name": "20 Hours Pack",
+            "stripe_price_id": "price_zzz"
+          },
+          "xlarge": {
+            "hours": 50,
+            "price": 180,
+            "name": "50 Hours Pack",
+            "stripe_price_id": "price_www"
+          }
+        }
+      }
+    },
+    
+    "environmentConfig": {
+      "description": "Example environment configuration",
+      "value": {
+        "FLASK_ENV": "production",
+        "PORT": 5000,
+        "SUPABASE_URL": "https://your-project.supabase.co",
+        "SUPABASE_KEY": "your-anon-key",
+        "REDIS_URL": "redis://redis:6379/0",
+        "CELERY_BROKER_URL": "redis://redis:6379/0",
+        "CELERY_RESULT_BACKEND": "redis://redis:6379/0",
+        "AWS_ENDPOINT_URL": "https://s3.us-east-1.wasabisys.com",
+        "AWS_BUCKET_NAME": "redline-data",
+        "CORS_ORIGINS": "https://yourdomain.com",
+        "REQUIRE_SUPABASE": true,
+        "ENFORCE_PAYMENT": true
+      }
+    }
+  },
+  
+  "oneOf": [
+    {
+      "$ref": "#/definitions/timeSeriesDataRecord"
+    },
+    {
+      "$ref": "#/definitions/financialDataRecord"
+    },
+    {
+      "$ref": "#/definitions/appConfiguration"
+    },
+    {
+      "$ref": "#/definitions/supabaseConfig"
+    },
+    {
+      "$ref": "#/definitions/authenticationConfig"
+    },
+    {
+      "$ref": "#/definitions/apiDownloaderConfig"
+    },
+    {
+      "$ref": "#/definitions/analysisConfig"
+    },
+    {
+      "$ref": "#/definitions/mlConfig"
+    },
+    {
+      "$ref": "#/definitions/paymentConfig"
+    },
+    {
+      "$ref": "#/definitions/environmentConfig"
+    },
+    {
+      "$ref": "#/definitions/fileFormatMapping"
+    },
+    {
+      "$ref": "#/definitions/dataValidationSchema"
+    },
+    {
+      "$ref": "#/definitions/stooqFormat"
+    }
+  ]
+}

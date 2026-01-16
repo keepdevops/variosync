@@ -1,0 +1,24 @@
+# VARIOSYNC Core Dependencies
+requests>=2.31.0
+boto3>=1.28.0
+supabase>=2.0.0
+
+# Web Application Dependencies
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+
+# Panel Dashboard
+panel>=1.4.5
+holoviews>=1.17.0
+hvplot>=0.9.0
+pandas>=2.0.0
+pyarrow>=12.0.0
+plotly>=5.17.0
+bokeh>=3.0.0  # Required for HoloViews
+
+# File Format Support
+duckdb>=0.9.0
+
+# Additional Dependencies
+numpy>=1.24.0

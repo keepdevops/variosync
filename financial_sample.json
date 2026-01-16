@@ -1,0 +1,22 @@
+[
+  {
+    "ticker": "AAPL",
+    "timestamp": "2024-01-15T09:30:00",
+    "open": 185.50,
+    "high": 186.20,
+    "low": 185.10,
+    "close": 185.85,
+    "vol": 12345678,
+    "format": "yahoo"
+  },
+  {
+    "ticker": "GOOGL",
+    "timestamp": "2024-01-15T09:30:00",
+    "open": 142.30,
+    "high": 143.15,
+    "low": 142.10,
+    "close": 142.95,
+    "vol": 5432109,
+    "format": "yahoo"
+  }
+]

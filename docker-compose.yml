@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  variosync:
+    build: .
+    container_name: variosync-app
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      - PORT=8000
+      - VARIOSYNC_CONFIG=/app/config.json
+      - CORS_ORIGINS=http://localhost:8080,http://localhost:3000
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_KEY=${SUPABASE_KEY:-}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_BUCKET_NAME=${AWS_BUCKET_NAME:-}
+    volumes:
+      - ./data:/app/data
+      - ./config.json:/app/config.json:ro
+      - ./variosync.log:/app/variosync.log
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
