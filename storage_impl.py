@@ -103,6 +103,17 @@ class LocalStorage(StorageBackend):
         except Exception as e:
             logger.error(f"Error listing keys with prefix {prefix}: {e}")
             return []
+    
+    def get_size(self, key: str) -> Optional[int]:
+        """Get file size in bytes."""
+        try:
+            file_path = self.base_path / key
+            if file_path.exists() and file_path.is_file():
+                return file_path.stat().st_size
+            return None
+        except Exception as e:
+            logger.error(f"Error getting size for {key}: {e}")
+            return None
 
 
 class S3Storage(StorageBackend):
@@ -217,3 +228,14 @@ class S3Storage(StorageBackend):
         except ClientError as e:
             logger.error(f"Error listing keys with prefix {prefix}: {e}")
             return []
+    
+    def get_size(self, key: str) -> Optional[int]:
+        """Get object size in bytes."""
+        try:
+            response = self.s3_client.head_object(Bucket=self.bucket_name, Key=key)
+            return response.get("ContentLength")
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "404":
+                return None
+            logger.error(f"Error getting size for {key}: {e}")
+            return None

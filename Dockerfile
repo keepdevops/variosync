@@ -14,17 +14,12 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install additional web dependencies including hvplot and bokeh-fastapi
+# Install NiceGUI and visualization dependencies
 RUN pip install --no-cache-dir \
-    panel>=1.4.5 \
-    holoviews>=1.17.0 \
-    hvplot>=0.9.0 \
+    nicegui>=1.4.0 \
     pandas \
     pyarrow \
-    plotly \
-    bokeh>=3.0.0 \
-    bokeh-fastapi \
-    wsproto
+    plotly
 
 # Copy application code
 COPY . .
@@ -41,7 +36,7 @@ ENV PYTHONUNBUFFERED=1
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
+    CMD python3 -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
 
-# Run the web application
-CMD ["sh", "-c", "uvicorn web_app:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Run the NiceGUI application
+CMD ["python3", "run_nicegui.py"]

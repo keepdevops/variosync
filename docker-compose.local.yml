@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: variosync-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Optional: PostgreSQL for local Supabase testing
+  # Uncomment if you want to test Supabase locally
+  # postgres:
+  #   image: supabase/postgres:15.1.0.117
+  #   container_name: variosync-postgres
+  #   ports:
+  #     - "5432:5432"
+  #   environment:
+  #     POSTGRES_PASSWORD: postgres
+  #     POSTGRES_DB: postgres
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  redis-data:
+  # postgres-data:

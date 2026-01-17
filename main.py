@@ -103,6 +103,107 @@ class VariosyncApp:
             logger.error(f"Error processing file {file_path}: {e}")
             return False
     
+    def convert_csv_to_duckdb(
+        self,
+        csv_file_path: str,
+        duckdb_file_path: Optional[str] = None,
+        table_name: str = "time_series_data",
+        has_header: bool = True,
+        if_exists: str = "replace"
+    ) -> bool:
+        """
+        Convert CSV file to DuckDB format.
+        
+        Args:
+            csv_file_path: Path to input CSV file
+            duckdb_file_path: Path to output DuckDB file (defaults to CSV path with .duckdb extension)
+            table_name: Name of the table to create in DuckDB
+            has_header: Whether CSV has header row
+            if_exists: What to do if table exists ('replace', 'append', 'fail')
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            from pathlib import Path
+            from file_formats import FormatHandlers
+            
+            # Generate output path if not provided
+            if duckdb_file_path is None:
+                csv_path = Path(csv_file_path)
+                duckdb_file_path = str(csv_path.with_suffix('.duckdb'))
+            
+            # Use FormatHandlers to perform conversion
+            handlers = FormatHandlers()
+            success = handlers.convert_csv_to_duckdb(
+                csv_file_path=csv_file_path,
+                duckdb_file_path=duckdb_file_path,
+                table_name=table_name,
+                has_header=has_header,
+                if_exists=if_exists
+            )
+            
+            if success:
+                logger.info(f"Successfully converted {csv_file_path} to {duckdb_file_path}")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Error converting CSV to DuckDB: {e}")
+            return False
+    
+    def convert_to_plotly_format(
+        self,
+        input_file_path: str,
+        output_file_path: Optional[str] = None,
+        output_format: str = "json",
+        normalize_measurements: bool = True
+    ) -> bool:
+        """
+        Convert any supported file format to a Plotly-friendly format.
+        
+        Args:
+            input_file_path: Path to input file
+            output_file_path: Path to output file (defaults to input path with new extension)
+            output_format: Output format ('json', 'parquet', 'csv')
+            normalize_measurements: Whether to flatten measurements dict into columns
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            from pathlib import Path
+            from file_formats import FormatHandlers
+            
+            # Generate output path if not provided
+            if output_file_path is None:
+                input_path = Path(input_file_path)
+                ext_map = {
+                    "json": ".json",
+                    "parquet": ".parquet",
+                    "csv": ".csv"
+                }
+                ext = ext_map.get(output_format.lower(), ".json")
+                output_file_path = str(input_path.with_suffix(ext))
+            
+            # Use FormatHandlers to perform conversion
+            handlers = FormatHandlers()
+            success = handlers.convert_to_plotly_format(
+                input_file_path=input_file_path,
+                output_file_path=output_file_path,
+                output_format=output_format,
+                normalize_measurements=normalize_measurements
+            )
+            
+            if success:
+                logger.info(f"Successfully converted {input_file_path} to Plotly format: {output_file_path}")
+            
+            return success
+            
+        except Exception as e:
+            logger.error(f"Error converting to Plotly format: {e}")
+            return False
+    
     def download_from_api(
         self,
         api_config: dict,

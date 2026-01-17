@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: variosync-web
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python run_nicegui.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_ENDPOINT_URL
+        sync: false
+      - key: AWS_BUCKET_NAME
+        sync: false
+      - key: MODAL_TOKEN_ID
+        sync: false
+      - key: MODAL_TOKEN_SECRET
+        sync: false
+      - key: NICEGUI_HOST
+        value: 0.0.0.0
+      - key: NICEGUI_PORT
+        value: 8000
+      - key: NICEGUI_RELOAD
+        value: false
+    healthCheckPath: /
+    plan: starter
+    autoDeploy: true
+    region: oregon
+
+databases:
+  - name: variosync-redis
+    plan: free
+    type: redis
+    maxmemoryPolicy: allkeys-lru

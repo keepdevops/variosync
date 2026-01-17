@@ -1,6 +1,12 @@
 """
 VARIOSYNC Panel Dashboard with FastAPI Native Integration
 Modern UI with glass-morphism, loading states, and responsive design.
+
+⚠️ DEPRECATED: This file is no longer used. 
+The application has been migrated to NiceGUI.
+See nicegui_app.py for the current implementation.
+
+This file is kept for reference only and may be removed in future versions.
 """
 import os
 from pathlib import Path

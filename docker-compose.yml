@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   variosync:
@@ -21,7 +20,7 @@ services:
       - ./variosync.log:/app/variosync.log
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      test: ["CMD", "python3", "-c", "import requests; requests.get('http://localhost:8000/health')"]
       interval: 30s
       timeout: 10s
       retries: 3

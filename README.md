@@ -59,18 +59,72 @@ user_id = app.authenticate_user("license-key", required_hours=0.1)
 app.process_data_file("data.json", record_type="time_series")
 ```
 
+## Web Dashboard
+
+VARIOSYNC includes a modern web dashboard powered by NiceGUI:
+
+```bash
+# Run the web dashboard
+python3 run_nicegui.py
+```
+
+Access the dashboard at: http://localhost:8000
+
+Features:
+- File upload and processing with real-time feedback
+- Time-series visualization
+- Storage browser
+- Hourly aggregates view
+
+See `START_NICEGUI.md` for detailed web dashboard documentation.
+
+## Cloud Deployment
+
+VARIOSYNC is designed for cloud-native SaaS deployment with:
+
+- **Render.com**: Auto-scaling web service hosting
+- **Supabase**: Authentication, PostgreSQL database, and storage
+- **Wasabi**: Cost-effective S3-compatible object storage
+- **Redis**: Caching and rate limiting (Upstash or Render Redis)
+- **Modal**: Serverless functions for ML inference and heavy processing
+- **Cloudflare**: DNS, CDN, WAF, and DDoS protection
+
+See **[ARCHITECTURE.md](ARCHITECTURE.md)** for detailed architecture documentation and **[DEPLOYMENT.md](DEPLOYMENT.md)** for step-by-step deployment instructions.
+
 ## Architecture
+
+### Cloud Architecture
+See **[ARCHITECTURE.md](ARCHITECTURE.md)** for the complete cloud architecture diagram and component details.
+
+### Application Modules
 
 The application is organized into logical modules:
 
 - **logger.py**: Centralized logging configuration
 - **config.py**: Configuration loading and validation
 - **storage.py**: Storage backend abstraction (local, S3, Wasabi)
+- **storage_impl.py**: Concrete storage implementations
 - **supabase_client.py**: Supabase database and storage integration
+- **supabase_operations.py**: Supabase database operations
 - **auth.py**: Authentication and payment validation
+- **auth_validator.py**: Authentication validation logic
 - **data_processor.py**: Time-series data processing and transformation
 - **api_downloader.py**: Generic API downloader with rate limiting
+- **redis_client.py**: Redis caching and rate limiting
 - **main.py**: Application entry point and orchestration
+- **nicegui_app.py**: NiceGUI web dashboard and UI
+- **run_nicegui.py**: Web application launcher
+- **modal_functions/**: Serverless functions for ML and heavy processing
+
+## Environment Variables
+
+For cloud deployment, configure environment variables as documented in **[ENV_VARS.md](ENV_VARS.md)**.
+
+Key variables:
+- `SUPABASE_URL`, `SUPABASE_KEY`: Supabase configuration
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_ENDPOINT_URL`, `AWS_BUCKET_NAME`: Wasabi/S3 storage
+- `REDIS_URL`: Redis connection string
+- `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET`: Modal.com credentials (optional)
 
 ## Configuration
 

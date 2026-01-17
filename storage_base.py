@@ -75,3 +75,18 @@ class StorageBackend(ABC):
             List of keys
         """
         pass
+    
+    def get_size(self, key: str) -> Optional[int]:
+        """
+        Get size of a file in bytes.
+        
+        Args:
+            key: Storage key/path
+            
+        Returns:
+            Size in bytes, or None if not found/not available
+        """
+        # Default implementation: load and check length
+        # Subclasses should override for efficiency
+        data = self.load(key)
+        return len(data) if data is not None else None
