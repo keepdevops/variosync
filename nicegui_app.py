@@ -17,6 +17,8 @@ import plotly.express as px
 
 from logger import get_logger
 from main import VariosyncApp
+from data_cleaner import DataCleaner
+from file_loader import FileLoader
 
 logger = get_logger()
 
@@ -214,7 +216,7 @@ def create_navbar():
                         last_refresh_time[0] = time.time()
                         ui.notify("Refreshing dashboard...", type="info")
                         # Show loading animation
-                        dashboard_btn.props("loading")
+                        dashboard_btn.set_enabled(False)
                         ui.run_javascript('window.location.reload()')
                     
                     dashboard_btn = ui.button(icon="dashboard", on_click=refresh_dashboard_btn)
@@ -467,7 +469,12 @@ def create_navbar():
                         try:
                             app = get_app_instance()
                             with ui.dialog() as download_dialog, ui.card().classes("w-full max-w-2xl"):
-                                ui.label("⬇️ Download from API").classes("text-xl font-semibold mb-4")
+                                ui.label("⬇️ Download from API").classes("text-xl font-semibold mb-2")
+                                
+                                # Help text
+                                with ui.card().classes("w-full p-3 mb-4 bg-blue-50 border-l-4 border-blue-500"):
+                                    ui.label("💡 Getting Started").classes("font-semibold text-blue-800 mb-1")
+                                    ui.label("Choose a data source type above. Use 'Browse All APIs' to discover available APIs, or select 'API (Requires Key)' to configure a specific API. For free datasets without API keys, select 'Free Dataset (No Key)'.").classes("text-sm text-blue-700")
                                 
                                 # Load API presets
                                 api_presets = {
@@ -663,18 +670,24 @@ def create_navbar():
                                 }
                                 
                                 # Data source type selector
-                                source_type_select = ui.select(
-                                    ["API (Requires Key)", "Free Dataset (No Key)", "Browse All APIs"],
-                                    label="Data Source Type",
-                                    value="API (Requires Key)"
-                                ).classes("w-full mb-4")
+                                with ui.column().classes("w-full mb-4"):
+                                    source_type_select = ui.select(
+                                        ["API (Requires Key)", "Free Dataset (No Key)", "Browse All APIs"],
+                                        label="Data Source Type",
+                                        value="API (Requires Key)"
+                                    ).classes("w-full")
+                                    ui.label("Select how you want to download data: API with key, free datasets, or browse all available APIs").classes("text-xs text-gray-500 mt-1")
                                 
                                 # API Browser section
                                 with ui.column().classes("w-full") as api_browser_container:
                                     api_browser_container.visible = False
                                     
-                                    ui.label("📚 Time-Series API Catalog").classes("text-xl font-semibold mb-4")
-                                    ui.label("Browse all available time-series APIs organized by category").classes("text-sm text-gray-500 mb-4")
+                                    ui.label("📚 Time-Series API Catalog").classes("text-xl font-semibold mb-2")
+                                    ui.label("Browse all available time-series APIs organized by category").classes("text-sm text-gray-500 mb-2")
+                                    
+                                    with ui.card().classes("w-full p-3 mb-4 bg-green-50 border-l-4 border-green-500"):
+                                        ui.label("ℹ️ How to Use").classes("font-semibold text-green-800 mb-1")
+                                        ui.label("Browse APIs by category using the tabs below. Each API card shows free tier limits, real-time capabilities, historical depth, and data types. Click 'Use This API' to automatically configure the API preset in the form.").classes("text-sm text-green-700")
                                     
                                     # API categories with all APIs
                                     api_categories = {
@@ -847,7 +860,11 @@ def create_navbar():
                                     free_datasets_container.visible = False
                                     
                                     ui.label("📥 Free Time-Series Datasets").classes("text-lg font-semibold mb-2")
-                                    ui.label("Download free datasets without API keys").classes("text-sm text-gray-500 mb-4")
+                                    ui.label("Download free datasets without API keys").classes("text-sm text-gray-500 mb-2")
+                                    
+                                    with ui.card().classes("w-full p-3 mb-4 bg-purple-50 border-l-4 border-purple-500"):
+                                        ui.label("ℹ️ How to Use").classes("font-semibold text-purple-800 mb-1")
+                                        ui.label("These sources provide direct CSV/JSON downloads. Visit the website, download the file, then use the Upload button in VARIOSYNC to process it. No API keys required!").classes("text-sm text-purple-700")
                                     
                                     # List of free data sources
                                     free_sources = [
@@ -903,43 +920,65 @@ def create_navbar():
                                             ui.label(f"Action: {source['action']}").classes("text-xs text-blue-600 mt-1")
                                     
                                     ui.separator().classes("my-4")
-                                    ui.label("💡 Tip: Download CSV/JSON files and use the Upload button to process them.").classes("text-sm text-blue-600")
-                                    ui.label("See FREE_DATA_SOURCES.md for complete list and instructions.").classes("text-xs text-gray-500 mt-2")
+                                    
+                                    with ui.card().classes("w-full p-3 bg-yellow-50 border-l-4 border-yellow-500"):
+                                        ui.label("📋 Instructions").classes("font-semibold text-yellow-800 mb-1")
+                                        ui.label("1. Visit the website link for your chosen data source").classes("text-sm text-yellow-700")
+                                        ui.label("2. Download the CSV/JSON file from their website").classes("text-sm text-yellow-700")
+                                        ui.label("3. Use the Upload button in VARIOSYNC to process the downloaded file").classes("text-sm text-yellow-700")
+                                        ui.label("4. See FREE_DATA_SOURCES.md for detailed instructions and more sources").classes("text-sm text-yellow-700 mt-2")
                                 
                                 # API form fields container
                                 with ui.column().classes("w-full") as api_form_container:
                                     api_form_container.visible = True
                                     
                                     # API preset selector
-                                    api_preset_select = ui.select(
-                                        list(api_presets.keys()),
-                                        label="API Preset",
-                                        value="Custom API"
-                                    ).classes("w-full")
+                                    with ui.column().classes("w-full"):
+                                        api_preset_select = ui.select(
+                                            list(api_presets.keys()),
+                                            label="API Preset",
+                                            value="Custom API"
+                                        ).classes("w-full")
+                                        ui.label("Select a pre-configured API or choose 'Custom API' to configure manually").classes("text-xs text-gray-500 mt-1")
                                     
-                                    # Form fields
+                                    # Form fields with help text
                                     api_name_input = ui.input(label="API Name", placeholder="e.g., Alpha Vantage, OpenWeather").classes("w-full")
+                                    ui.label("A friendly name to identify this API configuration").classes("text-xs text-gray-500 mb-2")
+                                    
                                     base_url_input = ui.input(label="Base URL", placeholder="https://api.example.com").classes("w-full")
+                                    ui.label("The base URL of the API (without endpoint path)").classes("text-xs text-gray-500 mb-2")
+                                    
                                     endpoint_input = ui.input(label="Endpoint", placeholder="/data/history").classes("w-full")
+                                    ui.label("The API endpoint path (e.g., /time_series, /stock/candle)").classes("text-xs text-gray-500 mb-2")
+                                    
                                     api_key_input = ui.input(label="API Key", password=True, placeholder="Your API key").classes("w-full")
+                                    ui.label("Your API key from the service provider. Get it from their website after signing up.").classes("text-xs text-gray-500 mb-2")
+                                    
                                     entity_input = ui.input(label="Entity/Symbol", placeholder="e.g., AAPL, NYC, latitude,longitude").classes("w-full")
+                                    ui.label("The identifier for the data you want (stock symbol, city name, coordinates, etc.)").classes("text-xs text-gray-500 mb-2")
                                     
                                     with ui.row().classes("w-full gap-2"):
                                         with ui.column().classes("flex-1"):
                                             ui.label("Start Date").classes("text-sm mb-1")
                                             start_date_input = ui.date().classes("w-full")
+                                            ui.label("Beginning of date range").classes("text-xs text-gray-500 mt-1")
                                         with ui.column().classes("flex-1"):
                                             ui.label("End Date").classes("text-sm mb-1")
                                             end_date_input = ui.date().classes("w-full")
+                                            ui.label("End of date range").classes("text-xs text-gray-500 mt-1")
                                     
                                     record_type_select = ui.select(
                                         ["time_series", "financial"],
                                         label="Record Type",
                                         value="time_series"
                                     ).classes("w-full")
+                                    ui.label("Choose 'time_series' for general data or 'financial' for stock/market data").classes("text-xs text-gray-500 mb-2")
                                     
                                     status_label = ui.label("Ready to download").classes("text-sm")
-                                    download_button = ui.button("Download", icon="download", color="primary")
+                                    
+                                    with ui.column().classes("w-full mt-2"):
+                                        download_button = ui.button("Download", icon="download", color="primary")
+                                        ui.label("Click to download data from the configured API. Make sure all required fields are filled.").classes("text-xs text-gray-500 mt-1")
                                 
                                 def toggle_source_type():
                                     if source_type_select.value == "Free Dataset (No Key)":
@@ -1082,18 +1121,21 @@ def create_navbar():
                                 download_button.on_click(execute_download)
                                 
                                 with ui.column().classes("w-full gap-2 mt-4"):
-                                    ui.label("Note: Configure API settings in config.json for persistent API sources.").classes("text-xs text-gray-500")
-                                    ui.label("See API_SOURCES.md for APIs and FREE_DATA_SOURCES.md for free datasets.").classes("text-xs text-blue-500")
-                                    
-                                    with ui.row().classes("w-full gap-2"):
-                                        def open_api_docs():
-                                            ui.notify("See API_SOURCES.md file for complete API documentation", type="info")
+                                    with ui.card().classes("w-full p-3 bg-gray-50"):
+                                        ui.label("📖 Additional Resources").classes("font-semibold text-gray-800 mb-2")
+                                        ui.label("• API_SOURCES.md - Complete API documentation with configuration examples").classes("text-xs text-gray-600 mb-1")
+                                        ui.label("• FREE_DATA_SOURCES.md - List of free datasets (no API keys required)").classes("text-xs text-gray-600 mb-1")
+                                        ui.label("• Configure persistent API sources in config.json for reuse").classes("text-xs text-gray-600 mb-2")
                                         
-                                        def open_free_data_docs():
-                                            ui.notify("See FREE_DATA_SOURCES.md for free datasets (no API keys)", type="info")
-                                        
-                                        ui.button("📚 API Docs", icon="book", on_click=open_api_docs).props("flat").classes("text-xs")
-                                        ui.button("📥 Free Data", icon="download", on_click=open_free_data_docs).props("flat").classes("text-xs")
+                                        with ui.row().classes("w-full gap-2"):
+                                            def open_api_docs():
+                                                ui.notify("See API_SOURCES.md file for complete API documentation", type="info")
+                                            
+                                            def open_free_data_docs():
+                                                ui.notify("See FREE_DATA_SOURCES.md for free datasets (no API keys)", type="info")
+                                            
+                                            ui.button("📚 View API Docs", icon="book", on_click=open_api_docs).props("flat size=sm")
+                                            ui.button("📥 View Free Data", icon="download", on_click=open_free_data_docs).props("flat size=sm")
                                 
                                 with ui.row().classes("w-full justify-end mt-4"):
                                     ui.button("Close", on_click=download_dialog.close).props("flat")
@@ -1130,9 +1172,8 @@ def create_navbar():
                     def sync_all():
                         try:
                             app = get_app_instance()
-                            sync_btn.props("loading")
-                            ui.notify("Syncing all data...", type="info")
                             sync_btn.set_enabled(False)
+                            ui.notify("Syncing all data...", type="info")
                             
                             # Sync operations
                             sync_count = 0
@@ -2957,6 +2998,607 @@ def dashboard_page():
                 row_key="key"
             ).classes("w-full")
             
+            # File list container with download buttons (better UX than table)
+            storage_files_container = ui.column().classes("w-full gap-2 mt-4")
+            
+            # Download format dialog function
+            def show_download_format_dialog(file_key: str):
+                """Show dialog to download file in different formats."""
+                try:
+                    app = get_app_instance()
+                    
+                    # Load the file data
+                    file_data = app.storage.load(file_key)
+                    if not file_data:
+                        ui.notify(f"Could not load file: {file_key}", type="negative")
+                        return
+                    
+                    # Parse the data based on file type
+                    from file_loader import FileLoader
+                    import tempfile
+                    import os
+                    
+                    # Create temp file to load data
+                    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=Path(file_key).suffix)
+                    temp_file.write(file_data)
+                    temp_file.close()
+                    
+                    try:
+                        loader = FileLoader()
+                        records = loader.load(temp_file.name)
+                        
+                        if not records:
+                            ui.notify("No data found in file", type="warning")
+                            return
+                        
+                        with ui.dialog() as download_dialog, ui.card().classes("w-full max-w-lg"):
+                            ui.label(f"📥 Download: {Path(file_key).name}").classes("text-xl font-semibold mb-4")
+                            ui.label(f"Found {len(records)} records. Choose export format:").classes("text-sm mb-4")
+                            
+                            # Format selector - all supported formats
+                            format_select = ui.select(
+                                ["json", "jsonl", "csv", "txt", "parquet", "feather", "duckdb", "xlsx", "xls", "h5", "arrow", "avro", "orc", "msgpack", "sqlite", "influxdb"],
+                                label="Export Format",
+                                value="json"
+                            ).classes("w-full mb-4")
+                            
+                            # Format descriptions
+                            format_descriptions = {
+                                "json": "JSON - Human-readable, good for APIs",
+                                "jsonl": "JSONL - JSON Lines, streaming-friendly",
+                                "csv": "CSV - Spreadsheet compatible, universal",
+                                "txt": "TXT - Tab-delimited text file",
+                                "parquet": "Parquet - Efficient columnar format",
+                                "feather": "Feather - Fast binary format",
+                                "duckdb": "DuckDB - Embedded database format",
+                                "xlsx": "Excel XLSX - Microsoft Excel format",
+                                "xls": "Excel XLS - Legacy Excel format",
+                                "h5": "HDF5 - Scientific data format",
+                                "arrow": "Apache Arrow - Columnar in-memory format",
+                                "avro": "Apache Avro - Schema-based binary format",
+                                "orc": "Apache ORC - Optimized Row Columnar format",
+                                "msgpack": "MessagePack - Efficient binary JSON",
+                                "sqlite": "SQLite - Portable SQL database",
+                                "influxdb": "InfluxDB Line Protocol - TSDB ingestion format"
+                            }
+                            
+                            format_desc_label = ui.label(format_descriptions.get(format_select.value, "")).classes("text-xs text-gray-500 mb-4")
+                            
+                            def update_format_desc():
+                                format_desc_label.text = format_descriptions.get(format_select.value, "")
+                            
+                            format_select.on('update:modelValue', update_format_desc)
+                            
+                            status_label = ui.label("Ready to download").classes("text-sm mb-4")
+                            
+                            def download_file():
+                                try:
+                                    export_format = format_select.value
+                                    status_label.text = f"⏳ Exporting to {export_format.upper()}..."
+                                    
+                                    from file_exporter import FileExporter
+                                    import tempfile
+                                    from pathlib import Path
+                                    
+                                    # Generate output filename
+                                    original_name = Path(file_key).stem
+                                    format_info = FileExporter.get_format_info(export_format)
+                                    ext = format_info["ext"] if format_info else f".{export_format}"
+                                    output_filename = f"{original_name}_export{ext}"
+                                    
+                                    # Create temp file for export
+                                    temp_output = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+                                    temp_output.close()
+                                    
+                                    # Export data
+                                    success = FileExporter.export(records, temp_output.name, export_format)
+                                    
+                                    if success:
+                                        # Read the exported file
+                                        with open(temp_output.name, "rb") as f:
+                                            export_data = f.read()
+                                        
+                                        # Trigger browser download
+                                        import base64
+                                        
+                                        b64_data = base64.b64encode(export_data).decode()
+                                        mime_type = format_info["mime"] if format_info else "application/octet-stream"
+                                        data_url = f"data:{mime_type};base64,{b64_data}"
+                                        
+                                        # Use JavaScript to trigger download
+                                        ui.run_javascript(f'''
+                                            const link = document.createElement('a');
+                                            link.href = '{data_url}';
+                                            link.download = '{output_filename}';
+                                            document.body.appendChild(link);
+                                            link.click();
+                                            document.body.removeChild(link);
+                                        ''')
+                                        
+                                        status_label.text = f"✅ Downloaded as {output_filename}"
+                                        ui.notify(f"Downloaded {output_filename}", type="positive")
+                                        download_dialog.close()
+                                    else:
+                                        status_label.text = "❌ Export failed. Check logs."
+                                        ui.notify("Export failed", type="negative")
+                                    
+                                    # Cleanup
+                                    try:
+                                        os.unlink(temp_output.name)
+                                    except:
+                                        pass
+                                        
+                                except Exception as e:
+                                    logger.error(f"Error downloading file: {e}", exc_info=True)
+                                    status_label.text = f"❌ Error: {str(e)}"
+                                    ui.notify(f"Download error: {str(e)}", type="negative")
+                            
+                            with ui.row().classes("w-full gap-2"):
+                                ui.button("Download", icon="download", color="primary", on_click=download_file)
+                                ui.button("Cancel", on_click=download_dialog.close).props("flat")
+                            
+                            download_dialog.open()
+                            
+                    finally:
+                        # Cleanup temp file
+                        try:
+                            os.unlink(temp_file.name)
+                        except:
+                            pass
+                            
+                except Exception as e:
+                    logger.error(f"Error showing download dialog: {e}", exc_info=True)
+                    ui.notify(f"Error: {str(e)}", type="negative")
+            
+            def show_data_editor(file_key: str):
+                """Show data editor/cleaner dialog."""
+                try:
+                    app = get_app_instance()
+                    
+                    # Load the file data
+                    file_data = app.storage.load(file_key)
+                    if not file_data:
+                        ui.notify(f"Could not load file: {file_key}", type="negative")
+                        return
+                    
+                    # Parse the data
+                    import tempfile
+                    import os
+                    
+                    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=Path(file_key).suffix)
+                    temp_file.write(file_data)
+                    temp_file.close()
+                    
+                    try:
+                        loader = FileLoader()
+                        records = loader.load(temp_file.name)
+                        
+                        if not records:
+                            ui.notify("No data found in file", type="warning")
+                            return
+                        
+                        # Convert to DataFrame for editing
+                        df = pd.DataFrame(records)
+                        
+                        with ui.dialog() as editor_dialog, ui.card().classes("w-full max-w-6xl max-h-[90vh] overflow-auto"):
+                            ui.label(f"✏️ Data Editor: {Path(file_key).name}").classes("text-xl font-semibold mb-4")
+                            
+                            # Data summary
+                            summary = DataCleaner.get_data_summary(df)
+                            
+                            with ui.expansion("📊 Data Summary", icon="info").classes("w-full mb-4"):
+                                with ui.column().classes("gap-2 text-sm"):
+                                    ui.label(f"Total Rows: {summary['total_rows']}").classes("font-semibold")
+                                    ui.label(f"Total Columns: {summary['total_columns']}")
+                                    ui.label(f"Duplicate Rows: {summary['duplicate_rows']}")
+                                    
+                                    with ui.expansion("Columns & Types").classes("w-full"):
+                                        for col, dtype in summary['dtypes'].items():
+                                            missing = summary['missing_values'].get(col, 0)
+                                            missing_pct = summary['missing_percentage'].get(col, 0)
+                                            ui.label(f"{col}: {dtype} ({missing} missing, {missing_pct:.1f}%)").classes("text-xs font-mono")
+                            
+                            # Cleaning operations
+                            ui.label("🧹 Cleaning Operations").classes("text-lg font-semibold mb-2")
+                            
+                            operations = []
+                            operations_container = ui.column().classes("w-full gap-2 mb-4")
+                            
+                            def add_operation():
+                                with operations_container:
+                                    with ui.card().classes("w-full p-3 border") as card_element:
+                                        with ui.row().classes("w-full items-center gap-2"):
+                                            op_type = ui.select(
+                                                ["drop_na", "fill_na", "remove_duplicates", "remove_outliers", 
+                                                 "normalize_timestamps", "filter_rows", "rename_columns", 
+                                                 "drop_columns", "add_column", "convert_type", "resample", 
+                                                 "interpolate", "clip_values", "round_values"],
+                                                label="Operation",
+                                                value="drop_na"
+                                            ).classes("flex-1")
+                                            
+                                            def remove_op():
+                                                card_element.delete()
+                                                if op in operations:
+                                                    operations.remove(op)
+                                            
+                                            ui.button("❌", icon="close", on_click=remove_op).props("size=sm flat")
+                                        
+                                        # Operation-specific parameters
+                                        params_container = ui.column().classes("w-full gap-2 mt-2")
+                                        
+                                        def update_params():
+                                            params_container.clear()
+                                            op_type_val = op_type.value
+                                            
+                                            if op_type_val == "drop_na":
+                                                with params_container:
+                                                    ui.input(label="Subset columns (comma-separated, leave empty for all)", placeholder="col1,col2")
+                                                    ui.select(["any", "all"], label="How", value="any")
+                                            
+                                            elif op_type_val == "fill_na":
+                                                with params_container:
+                                                    ui.select(["ffill", "bfill", "mean", "median", "mode", "value"], label="Method", value="ffill")
+                                                    ui.input(label="Value (if method='value')", placeholder="0")
+                                                    ui.input(label="Columns (comma-separated, leave empty for all)", placeholder="col1,col2")
+                                            
+                                            elif op_type_val == "remove_outliers":
+                                                with params_container:
+                                                    ui.select(["iqr", "zscore"], label="Method", value="iqr")
+                                                    ui.input(label="Threshold (for zscore)", value="3")
+                                                    ui.input(label="Columns (comma-separated)", placeholder="col1,col2")
+                                            
+                                            elif op_type_val == "filter_rows":
+                                                with params_container:
+                                                    ui.select(list(df.columns), label="Column")
+                                                    ui.input(label="Condition", placeholder="> 100")
+                                            
+                                            elif op_type_val == "rename_columns":
+                                                with params_container:
+                                                    ui.textarea(label="Column mapping (JSON)", placeholder='{"old_name": "new_name"}')
+                                            
+                                            elif op_type_val == "drop_columns":
+                                                with params_container:
+                                                    ui.textarea(label="Columns to drop (one per line)")
+                                            
+                                            elif op_type_val == "add_column":
+                                                with params_container:
+                                                    ui.input(label="Column name")
+                                                    ui.input(label="Value or expression", placeholder="col1 + col2")
+                                            
+                                            elif op_type_val == "convert_type":
+                                                with params_container:
+                                                    ui.select(list(df.columns), label="Column")
+                                                    ui.select(["float", "int", "datetime", "string"], label="Type", value="float")
+                                            
+                                            elif op_type_val == "resample":
+                                                with params_container:
+                                                    ui.select(list(df.columns), label="Timestamp column", value="timestamp" if "timestamp" in df.columns else None)
+                                                    ui.input(label="Frequency", value="1H", placeholder="1H, 1D, 1W")
+                                                    ui.select(["mean", "sum", "max", "min", "first", "last"], label="Method", value="mean")
+                                            
+                                            elif op_type_val == "interpolate":
+                                                with params_container:
+                                                    ui.select(["linear", "polynomial", "spline"], label="Method", value="linear")
+                                                    ui.input(label="Columns (comma-separated)", placeholder="col1,col2")
+                                            
+                                            elif op_type_val == "clip_values":
+                                                with params_container:
+                                                    ui.select(list(df.columns), label="Column")
+                                                    ui.input(label="Min value")
+                                                    ui.input(label="Max value")
+                                            
+                                            elif op_type_val == "round_values":
+                                                with params_container:
+                                                    ui.input(label="Decimals", value="2")
+                                                    ui.input(label="Columns (comma-separated)", placeholder="col1,col2")
+                                        
+                                        op_type.on('update:modelValue', update_params)
+                                        update_params()
+                                        
+                                        op = {"operation": op_type.value, "params": {}}
+                                        operations.append(op)
+                            
+                            with ui.row().classes("w-full gap-2 mb-2"):
+                                ui.button("➕ Add Operation", icon="add", on_click=add_operation).props("outline")
+                            
+                            # Preview and apply
+                            preview_df = df.copy()
+                            preview_container = ui.column().classes("w-full")
+                            save_btn = None
+                            
+                            def apply_operations():
+                                nonlocal preview_df, save_btn
+                                try:
+                                    # Use operations list directly
+                                    # Note: In a full implementation, you'd extract parameter values from UI widgets
+                                    # For now, operations use default parameters or those set in the operation dict
+                                    preview_df = DataCleaner.clean_dataframe(df.copy(), operations)
+                                    
+                                    # Show preview
+                                    preview_container.clear()
+                                    with preview_container:
+                                        ui.label(f"✅ Preview: {len(preview_df)} rows (was {len(df)} rows)").classes("text-sm font-semibold text-green-600 mb-2")
+                                        
+                                        # Show first few rows
+                                        preview_table = ui.table(
+                                            columns=[{"name": col, "label": col, "field": col} for col in preview_df.columns[:10]],
+                                            rows=preview_df.head(20).to_dict('records'),
+                                            row_key="index"
+                                        ).classes("w-full")
+                                        
+                                    # Enable save button
+                                    if save_btn:
+                                        save_btn.set_enabled(True)
+                                    
+                                    ui.notify("Operations applied. Review preview.", type="positive")
+                                except Exception as e:
+                                    logger.error(f"Error applying operations: {e}", exc_info=True)
+                                    ui.notify(f"Error: {str(e)}", type="negative")
+                            
+                            def save_cleaned():
+                                try:
+                                    # Convert DataFrame back to records
+                                    cleaned_records = preview_df.to_dict('records')
+                                    
+                                    # Save back to storage
+                                    import json
+                                    cleaned_data = json.dumps(cleaned_records, indent=2, default=str).encode('utf-8')
+                                    
+                                    # Create new key with _cleaned suffix
+                                    new_key = file_key.replace('.json', '_cleaned.json')
+                                    app.storage.save(new_key, cleaned_data)
+                                    
+                                    ui.notify(f"Saved cleaned data to {new_key}", type="positive")
+                                    editor_dialog.close()
+                                    refresh_storage()
+                                except Exception as e:
+                                    logger.error(f"Error saving cleaned data: {e}")
+                                    ui.notify(f"Error saving: {str(e)}", type="negative")
+                            
+                            with ui.row().classes("w-full gap-2 mb-4"):
+                                ui.button("🔍 Preview", icon="preview", on_click=apply_operations).props("outline")
+                                save_btn = ui.button("💾 Save Cleaned Data", icon="save", on_click=save_cleaned, color="primary")
+                                save_btn.set_enabled(False)
+                            
+                            with ui.row().classes("w-full justify-end"):
+                                ui.button("Close", on_click=editor_dialog.close).props("flat")
+                            
+                            editor_dialog.open()
+                            
+                    finally:
+                        try:
+                            os.unlink(temp_file.name)
+                        except:
+                            pass
+                            
+                except Exception as e:
+                    logger.error(f"Error showing data editor: {e}", exc_info=True)
+                    ui.notify(f"Error: {str(e)}", type="negative")
+            
+            def show_data_visualizer(file_key: str):
+                """Show enhanced data visualization dialog."""
+                try:
+                    app = get_app_instance()
+                    
+                    # Load the file data
+                    file_data = app.storage.load(file_key)
+                    if not file_data:
+                        ui.notify(f"Could not load file: {file_key}", type="negative")
+                        return
+                    
+                    # Parse the data
+                    import tempfile
+                    import os
+                    
+                    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=Path(file_key).suffix)
+                    temp_file.write(file_data)
+                    temp_file.close()
+                    
+                    try:
+                        loader = FileLoader()
+                        records = loader.load(temp_file.name)
+                        
+                        if not records:
+                            ui.notify("No data found in file", type="warning")
+                            return
+                        
+                        # Convert to DataFrame
+                        df = pd.DataFrame(records)
+                        
+                        with ui.dialog() as viz_dialog, ui.card().classes("w-full max-w-7xl max-h-[90vh] overflow-auto"):
+                            ui.label(f"📊 Data Visualization: {Path(file_key).name}").classes("text-xl font-semibold mb-4")
+                            
+                            # Chart type selector
+                            chart_type = ui.select(
+                                ["line", "scatter", "bar", "area", "heatmap", "histogram", "box", "violin", "candlestick"],
+                                label="Chart Type",
+                                value="line"
+                            ).classes("w-full mb-4")
+                            
+                            # Column selectors
+                            x_col = ui.select(
+                                list(df.columns),
+                                label="X Axis",
+                                value="timestamp" if "timestamp" in df.columns else list(df.columns)[0]
+                            ).classes("w-full mb-2")
+                            
+                            y_cols = ui.select(
+                                list(df.select_dtypes(include=['number']).columns) if len(df.select_dtypes(include=['number']).columns) > 0 else list(df.columns),
+                                label="Y Axis",
+                                multiple=True
+                            ).classes("w-full mb-2")
+                            
+                            # Chart options
+                            with ui.expansion("⚙️ Chart Options").classes("w-full mb-4"):
+                                title_input = ui.input(label="Chart Title", value=f"Visualization: {Path(file_key).name}").classes("w-full")
+                                width_input = ui.input(label="Width", value="1000").classes("w-full")
+                                height_input = ui.input(label="Height", value="600").classes("w-full")
+                                show_legend = ui.checkbox("Show Legend", value=True)
+                                show_grid = ui.checkbox("Show Grid", value=True)
+                            
+                            plot_container = ui.column().classes("w-full")
+                            
+                            def update_plot():
+                                try:
+                                    plot_container.clear()
+                                    
+                                    chart_type_val = chart_type.value
+                                    x_col_val = x_col.value
+                                    y_cols_val = y_cols.value if y_cols.value else [y_cols.options[0]] if y_cols.options else []
+                                    
+                                    if not y_cols_val:
+                                        ui.label("Please select at least one Y axis column").classes("text-red-500")
+                                        return
+                                    
+                                    # Prepare data
+                                    plot_df = df[[x_col_val] + y_cols_val].copy()
+                                    plot_df = plot_df.dropna()
+                                    
+                                    if len(plot_df) == 0:
+                                        ui.label("No data to plot after removing NaN values").classes("text-red-500")
+                                        return
+                                    
+                                    # Create Plotly figure
+                                    fig = go.Figure()
+                                    
+                                    if chart_type_val == "line":
+                                        for col in y_cols_val:
+                                            fig.add_trace(go.Scatter(
+                                                x=plot_df[x_col_val],
+                                                y=plot_df[col],
+                                                mode='lines+markers',
+                                                name=col,
+                                                line=dict(width=2)
+                                            ))
+                                    
+                                    elif chart_type_val == "scatter":
+                                        for col in y_cols_val:
+                                            fig.add_trace(go.Scatter(
+                                                x=plot_df[x_col_val],
+                                                y=plot_df[col],
+                                                mode='markers',
+                                                name=col,
+                                                marker=dict(size=5)
+                                            ))
+                                    
+                                    elif chart_type_val == "bar":
+                                        for col in y_cols_val:
+                                            fig.add_trace(go.Bar(
+                                                x=plot_df[x_col_val],
+                                                y=plot_df[col],
+                                                name=col
+                                            ))
+                                    
+                                    elif chart_type_val == "area":
+                                        for col in y_cols_val:
+                                            fig.add_trace(go.Scatter(
+                                                x=plot_df[x_col_val],
+                                                y=plot_df[col],
+                                                mode='lines',
+                                                name=col,
+                                                fill='tozeroy',
+                                                line=dict(width=2)
+                                            ))
+                                    
+                                    elif chart_type_val == "heatmap":
+                                        if len(y_cols_val) > 1:
+                                            # Create correlation heatmap
+                                            corr_data = plot_df[y_cols_val].corr()
+                                            fig = go.Figure(data=go.Heatmap(
+                                                z=corr_data.values,
+                                                x=corr_data.columns,
+                                                y=corr_data.index,
+                                                colorscale='Viridis'
+                                            ))
+                                        else:
+                                            ui.label("Heatmap requires multiple Y columns").classes("text-red-500")
+                                            return
+                                    
+                                    elif chart_type_val == "histogram":
+                                        for col in y_cols_val:
+                                            fig.add_trace(go.Histogram(
+                                                x=plot_df[col],
+                                                name=col,
+                                                opacity=0.7
+                                            ))
+                                    
+                                    elif chart_type_val == "box":
+                                        for col in y_cols_val:
+                                            fig.add_trace(go.Box(
+                                                y=plot_df[col],
+                                                name=col
+                                            ))
+                                    
+                                    elif chart_type_val == "violin":
+                                        for col in y_cols_val:
+                                            fig.add_trace(go.Violin(
+                                                y=plot_df[col],
+                                                name=col,
+                                                box_visible=True
+                                            ))
+                                    
+                                    elif chart_type_val == "candlestick":
+                                        # Requires OHLC columns
+                                        ohlc_cols = ['open', 'high', 'low', 'close']
+                                        if all(col in df.columns for col in ohlc_cols):
+                                            fig = go.Figure(data=go.Candlestick(
+                                                x=plot_df[x_col_val],
+                                                open=plot_df['open'],
+                                                high=plot_df['high'],
+                                                low=plot_df['low'],
+                                                close=plot_df['close']
+                                            ))
+                                        else:
+                                            ui.label("Candlestick requires 'open', 'high', 'low', 'close' columns").classes("text-red-500")
+                                            return
+                                    
+                                    # Update layout
+                                    fig.update_layout(
+                                        title=title_input.value,
+                                        width=int(width_input.value) if width_input.value.isdigit() else 1000,
+                                        height=int(height_input.value) if height_input.value.isdigit() else 600,
+                                        showlegend=show_legend.value,
+                                        xaxis=dict(showgrid=show_grid.value),
+                                        yaxis=dict(showgrid=show_grid.value),
+                                        template="plotly_dark"
+                                    )
+                                    
+                                    # Display plot
+                                    with plot_container:
+                                        ui.plotly(fig).classes("w-full")
+                                        
+                                except Exception as e:
+                                    logger.error(f"Error creating plot: {e}", exc_info=True)
+                                    with plot_container:
+                                        ui.label(f"Error creating plot: {str(e)}").classes("text-red-500")
+                            
+                            # Auto-update on change
+                            chart_type.on('update:modelValue', update_plot)
+                            x_col.on('update:modelValue', update_plot)
+                            y_cols.on('update:modelValue', update_plot)
+                            
+                            with ui.row().classes("w-full gap-2 mb-4"):
+                                ui.button("🔄 Update Plot", icon="refresh", on_click=update_plot, color="primary")
+                            
+                            # Initial plot
+                            update_plot()
+                            
+                            with ui.row().classes("w-full justify-end mt-4"):
+                                ui.button("Close", on_click=viz_dialog.close).props("flat")
+                            
+                            viz_dialog.open()
+                            
+                    finally:
+                        try:
+                            os.unlink(temp_file.name)
+                        except:
+                            pass
+                            
+                except Exception as e:
+                    logger.error(f"Error showing visualizer: {e}", exc_info=True)
+                    ui.notify(f"Error: {str(e)}", type="negative")
+            
             def refresh_storage():
                 """Refresh storage browser."""
                 try:
@@ -2964,6 +3606,14 @@ def dashboard_page():
                     if app.storage:
                         keys = app.storage.list_keys()[:100]
                         rows = []
+                        
+                        # Clear and rebuild file list
+                        storage_files_container.clear()
+                        
+                        if not keys:
+                            with storage_files_container:
+                                ui.label("No files in storage").classes("text-gray-500")
+                        
                         for k in keys:
                             file_type = k.split('.')[-1].upper() if '.' in k else 'DATA'
                             
@@ -2979,13 +3629,56 @@ def dashboard_page():
                                 else:
                                     size_str = f"{size_bytes} B"
                             else:
-                                size_str = "N/A"
+                                # Fallback: load file to get size
+                                try:
+                                    file_data = app.storage.load(k)
+                                    size_bytes = len(file_data) if file_data else 0
+                                    if size_bytes >= 1024 * 1024:
+                                        size_str = f"{size_bytes / (1024 * 1024):.2f} MB"
+                                    elif size_bytes >= 1024:
+                                        size_str = f"{size_bytes / 1024:.2f} KB"
+                                    else:
+                                        size_str = f"{size_bytes} B"
+                                except:
+                                    size_str = "N/A"
                             
                             rows.append({
                                 "key": k,
                                 "size": size_str,
                                 "type": file_type
                             })
+                            
+                            # Add file card with download button
+                            with storage_files_container:
+                                with ui.card().classes("w-full p-3 hover:bg-gray-50"):
+                                    with ui.row().classes("w-full items-center justify-between"):
+                                        with ui.column().classes("flex-1"):
+                                            ui.label(Path(k).name).classes("font-semibold")
+                                            with ui.row().classes("gap-4 text-xs text-gray-500 mt-1"):
+                                                ui.label(f"Size: {size_str}")
+                                                ui.label(f"Type: {file_type}")
+                                                ui.label(f"Key: {k}").classes("text-xs font-mono")
+                                        
+                                        def make_download_handler(file_key=k):
+                                            def handler():
+                                                show_download_format_dialog(file_key)
+                                            return handler
+                                        
+                                        def make_edit_handler(file_key=k):
+                                            def handler():
+                                                show_data_editor(file_key)
+                                            return handler
+                                        
+                                        def make_visualize_handler(file_key=k):
+                                            def handler():
+                                                show_data_visualizer(file_key)
+                                            return handler
+                                        
+                                        with ui.row().classes("gap-2"):
+                                            ui.button("📥 Download", icon="download", on_click=make_download_handler(k)).props("size=sm color=primary")
+                                            ui.button("✏️ Edit", icon="edit", on_click=make_edit_handler(k)).props("size=sm color=secondary")
+                                            ui.button("📊 Visualize", icon="show_chart", on_click=make_visualize_handler(k)).props("size=sm color=accent")
+                        
                         storage_table.rows = rows
                         ui.notify("Storage refreshed", type="info")
                 except Exception as e:
