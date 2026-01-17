@@ -72,7 +72,38 @@ def get_app_instance():
 
 # Import and register components
 from .navbar import create_navbar
-from .dashboard import dashboard_page
+# from .dashboard import dashboard_page  # TODO: Extract dashboard_page to dashboard.py
 from .health import health_check
+from .state import get_state, UIState
+from .visualization import (
+    load_timeseries_data,
+    get_available_series,
+    is_financial_data,
+    get_available_metrics,
+    extract_ohlcv_data,
+    create_matplotlib_financial_plot,
+    create_matplotlib_plot,
+    matplotlib_figure_to_base64,
+    create_financial_plot,
+    create_plot,
+)
 
-__all__ = ['create_navbar', 'dashboard_page', 'health_check', 'get_app_instance', 'MATPLOTLIB_AVAILABLE']
+__all__ = [
+    'create_navbar',
+    # 'dashboard_page',  # TODO: Uncomment when dashboard.py is created
+    'health_check',
+    'get_app_instance',
+    'get_state',
+    'UIState',
+    'MATPLOTLIB_AVAILABLE',
+    'load_timeseries_data',
+    'get_available_series',
+    'is_financial_data',
+    'get_available_metrics',
+    'extract_ohlcv_data',
+    'create_matplotlib_financial_plot',
+    'create_matplotlib_plot',
+    'matplotlib_figure_to_base64',
+    'create_financial_plot',
+    'create_plot',
+]

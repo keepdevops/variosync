@@ -61,23 +61,26 @@ This document tracks the splitting of Python files over 250 lines into smaller, 
 - **After** (PARTIALLY COMPLETE):
   - ✅ `nicegui_app/__init__.py` (Initialization, imports, app instance)
   - ✅ `nicegui_app/health.py` (Health check endpoint)
+  - ✅ `nicegui_app/constants.py` (Design tokens and constants)
+  - ✅ `nicegui_app/visualization.py` (Plotting functions - ~500 lines)
+  - ✅ `nicegui_app/dialogs.py` (Dialog function stubs - TODO: extract implementations)
   - ⏳ `nicegui_app/navbar.py` (Navigation bar - TODO)
   - ⏳ `nicegui_app/dashboard.py` (Dashboard page - TODO)
-  - ⏳ `nicegui_app/dialogs.py` (Download, search, payment dialogs - TODO)
-  - ⏳ `nicegui_app/visualization.py` (Plotting functions - TODO)
   - ⏳ `nicegui_app/storage_browser.py` (Storage browser UI - TODO)
-- **Status**: In Progress (2/7 modules complete)
-- **Note**: The original `nicegui_app.py` file still exists and needs to be refactored to import from the new modules
+- **Status**: In Progress (4/7 modules complete)
+- **Note**: The original `nicegui_app.py` file still exists and needs to be refactored to import from the new modules. Visualization functions have been extracted. Dialogs and navbar need full extraction.
 
 ## Remaining Files to Split
 
-### ⏳ panel_dashboard_fastapi.py (771 lines)
-**Priority**: MEDIUM
-**Suggested split**:
-- `panel_dashboard/__init__.py` - Main dashboard
-- `panel_dashboard/plotting.py` - Plotting functions
-- `panel_dashboard/components.py` - UI components
-- `panel_dashboard/routes.py` - FastAPI routes
+### ✅ panel_dashboard_fastapi.py (771 lines → split)
+- **Before**: 771 lines
+- **After**:
+  - `panel_dashboard/__init__.py` (Re-exports)
+  - `panel_dashboard/theme.py` (Design tokens, icons, status messages, CSS)
+  - `panel_dashboard/components.py` (Component factory functions)
+  - `panel_dashboard/dashboard.py` (Main dashboard creation)
+  - `panel_dashboard_fastapi.py` (Backward compatibility wrapper)
+- **Status**: Complete
 
 ## Import Updates Required
 

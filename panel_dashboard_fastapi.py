@@ -8,27 +8,40 @@ See nicegui_app.py for the current implementation.
 
 This file is kept for reference only and may be removed in future versions.
 """
-import os
-from pathlib import Path
-from typing import Optional
+# Import from new modular structure
+from panel_dashboard import (
+    DesignTokens,
+    Icons,
+    StatusMessages,
+    ProDarkTheme,
+    ENHANCED_CSS,
+    create_modern_button,
+    create_section_header,
+    create_divider,
+    create_navbar,
+    create_dashboard,
+)
 
-try:
-    import panel as pn
-    import pandas as pd
-    from panel.template import DarkTheme
-    PANEL_AVAILABLE = True
-except ImportError:
-    PANEL_AVAILABLE = False
+# Re-export for backward compatibility
+__all__ = [
+    'DesignTokens',
+    'Icons',
+    'StatusMessages',
+    'ProDarkTheme',
+    'ENHANCED_CSS',
+    'create_modern_button',
+    'create_section_header',
+    'create_divider',
+    'create_navbar',
+    'create_dashboard',
+]
 
-from logger import get_logger
-from main import VariosyncApp
-from panel_timeseries import get_timeseries_plot
 
-logger = get_logger()
-
+# Backward compatibility - all functionality moved to panel_dashboard package
+# The rest of this file is kept for reference but functionality is imported above
 
 # =============================================================================
-# DESIGN TOKENS - Centralized styling configuration
+# DESIGN TOKENS - Centralized styling configuration (DEPRECATED - use panel_dashboard.DesignTokens)
 # =============================================================================
 class DesignTokens:
     """Centralized design system tokens for consistent styling."""
