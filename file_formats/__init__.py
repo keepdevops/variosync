@@ -6,7 +6,9 @@ from .text import TextFormatHandlers
 from .binary import BinaryFormatHandlers
 from .converters import FormatConverters
 
-logger = None  # Will be set when imported
+from logger import get_logger
+
+logger = get_logger()
 
 
 class FormatHandlers:

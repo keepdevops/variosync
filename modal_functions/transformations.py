@@ -1,28 +1,23 @@
 """
-Modal Functions: Heavy Data Processing
-Serverless functions for large-scale data processing tasks.
+Modal Functions: Data Transformations
+Serverless functions for data cleaning and transformation.
 """
-# Import from new modular structure
+import os
+from typing import Dict, List, Any
+import pandas as pd
+
 try:
-    from .conversions import convert_csv_to_parquet, app, processing_image
-    from .transformations import clean_and_transform_data, batch_process_files
-    
-    __all__ = ['convert_csv_to_parquet', 'clean_and_transform_data', 'batch_process_files', 'app', 'processing_image']
+    import modal
+    MODAL_AVAILABLE = True
 except ImportError:
-    # Fallback to original implementation if modules don't exist
-    import os
-    from typing import Dict, List, Any
-    import pandas as pd
-    
+    MODAL_AVAILABLE = False
+
+if MODAL_AVAILABLE:
     try:
-        import modal
-        MODAL_AVAILABLE = True
+        from .conversions import app, processing_image
     except ImportError:
-        MODAL_AVAILABLE = False
-    
-    if MODAL_AVAILABLE:
+        # Fallback if conversions module not available
         app = modal.App("variosync-processing")
-        
         processing_image = (
             modal.Image.debian_slim(python_version="3.11")
             .pip_install([
@@ -33,89 +28,6 @@ except ImportError:
                 "duckdb>=0.9.0",
             ])
         )
-        
-        @app.function(
-            image=processing_image,
-            secrets=[modal.Secret.from_name("aws-credentials")],
-            timeout=3600,
-            memory=4096,
-        )
-        def convert_csv_to_parquet(
-            source_path: str,
-            destination_path: str,
-            chunk_size: int = 100000,
-            compression: str = "snappy"
-        ) -> Dict[str, Any]:
-        """
-        Convert large CSV file to Parquet format.
-        
-        Args:
-            source_path: S3/Wasabi path to source CSV
-            destination_path: S3/Wasabi path for output Parquet
-            chunk_size: Number of rows to process at a time
-            compression: Compression codec ('snappy', 'gzip', 'brotli', etc.)
-            
-        Returns:
-            Dictionary with conversion results
-        """
-        try:
-            import boto3
-            
-            s3_client = boto3.client(
-                's3',
-                endpoint_url=os.environ.get('AWS_ENDPOINT_URL'),
-                aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
-                aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY'),
-            )
-            
-            bucket = os.environ.get('AWS_BUCKET_NAME')
-            local_csv = f"/tmp/{os.path.basename(source_path)}"
-            local_parquet = f"/tmp/{os.path.basename(destination_path)}"
-            
-            # Download CSV
-            s3_client.download_file(bucket, source_path, local_csv)
-            
-            # Convert in chunks
-            first_chunk = True
-            total_rows = 0
-            
-            for chunk in pd.read_csv(local_csv, chunksize=chunk_size):
-                total_rows += len(chunk)
-                
-                if first_chunk:
-                    chunk.to_parquet(
-                        local_parquet,
-                        compression=compression,
-                        engine='pyarrow'
-                    )
-                    first_chunk = False
-                else:
-                    chunk.to_parquet(
-                        local_parquet,
-                        compression=compression,
-                        engine='pyarrow',
-                        append=True
-                    )
-            
-            # Upload Parquet
-            s3_client.upload_file(local_parquet, bucket, destination_path)
-            
-            # Cleanup
-            os.remove(local_csv)
-            os.remove(local_parquet)
-            
-            return {
-                "success": True,
-                "rows_processed": total_rows,
-                "source_path": source_path,
-                "destination_path": destination_path,
-                "compression": compression,
-            }
-        except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
     
     @app.function(
         image=processing_image,
@@ -155,10 +67,8 @@ except ImportError:
             local_input = f"/tmp/{os.path.basename(data_path)}"
             local_output = f"/tmp/{os.path.basename(output_path)}"
             
-            # Download data
             s3_client.download_file(bucket, data_path, local_input)
             
-            # Load data
             if data_path.endswith('.parquet'):
                 df = pd.read_parquet(local_input)
             elif data_path.endswith('.csv'):
@@ -168,7 +78,6 @@ except ImportError:
             
             original_rows = len(df)
             
-            # Apply transformations
             for transform in transformations:
                 op = transform.get('operation')
                 params = transform.get('params', {})
@@ -192,7 +101,6 @@ except ImportError:
                     if column:
                         df[column] = value
             
-            # Save transformed data
             if output_path.endswith('.parquet'):
                 df.to_parquet(local_output, compression='snappy')
             elif output_path.endswith('.csv'):
@@ -200,10 +108,8 @@ except ImportError:
             else:
                 raise ValueError(f"Unsupported output format: {output_path}")
             
-            # Upload result
             s3_client.upload_file(local_output, bucket, output_path)
             
-            # Cleanup
             os.remove(local_input)
             os.remove(local_output)
             
@@ -225,8 +131,8 @@ except ImportError:
         secrets=[
             modal.Secret.from_name("aws-credentials"),
         ],
-        timeout=7200,  # 2 hours for large batches
-        memory=8192,  # 8GB RAM
+        timeout=7200,
+        memory=8192,
     )
     def batch_process_files(
         file_paths: List[str],
@@ -246,6 +152,8 @@ except ImportError:
         Returns:
             Dictionary with batch processing results
         """
+        from .conversions import convert_csv_to_parquet
+        
         results = []
         success_count = 0
         error_count = 0

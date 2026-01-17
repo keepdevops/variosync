@@ -28,51 +28,84 @@ This document tracks the splitting of Python files over 250 lines into smaller, 
   - `file_formats/text.py` (JSON, CSV, TXT loaders)
   - `file_formats/binary.py` (Parquet, Feather, DuckDB loaders)
   - `file_formats/converters.py` (Conversion utilities)
-- **Status**: In progress
+- **Status**: Complete
+
+### ✅ file_exporter.py (564 lines → split)
+- **Before**: 564 lines
+- **After**:
+  - `file_exporter/__init__.py` (~80 lines)
+  - `file_exporter/text.py` (JSON, JSONL, CSV, TXT exporters)
+  - `file_exporter/binary.py` (Parquet, Feather, DuckDB, Excel, H5, Arrow exporters)
+  - `file_exporter/specialized.py` (Avro, ORC, MessagePack, SQLite, InfluxDB exporters)
+- **Status**: Complete
+
+### ✅ main.py (325 lines → split)
+- **Before**: 325 lines
+- **After**:
+  - `app/__init__.py` (Re-exports)
+  - `app/core.py` (VariosyncApp class)
+  - `app/cli.py` (CLI interface)
+  - `main.py` (Backward compatibility wrapper)
+- **Status**: Complete
+
+### ✅ modal_functions/data_processing.py (291 lines → split)
+- **Before**: 291 lines
+- **After**:
+  - `modal_functions/conversions.py` (CSV to Parquet conversion)
+  - `modal_functions/transformations.py` (Data cleaning and batch processing)
+  - `modal_functions/data_processing.py` (Backward compatibility wrapper)
+- **Status**: Complete
+
+### ⏳ nicegui_app.py (3759 lines → split)
+- **Before**: 3759 lines
+- **After** (PARTIALLY COMPLETE):
+  - ✅ `nicegui_app/__init__.py` (Initialization, imports, app instance)
+  - ✅ `nicegui_app/health.py` (Health check endpoint)
+  - ⏳ `nicegui_app/navbar.py` (Navigation bar - TODO)
+  - ⏳ `nicegui_app/dashboard.py` (Dashboard page - TODO)
+  - ⏳ `nicegui_app/dialogs.py` (Download, search, payment dialogs - TODO)
+  - ⏳ `nicegui_app/visualization.py` (Plotting functions - TODO)
+  - ⏳ `nicegui_app/storage_browser.py` (Storage browser UI - TODO)
+- **Status**: In Progress (2/7 modules complete)
+- **Note**: The original `nicegui_app.py` file still exists and needs to be refactored to import from the new modules
 
 ## Remaining Files to Split
 
-### ⏳ nicegui_app.py (3759 lines)
-**Priority**: HIGH - This is the largest file
-**Suggested split**:
-- `nicegui_app/__init__.py` - Main app initialization
-- `nicegui_app/navbar.py` - Navigation bar component (~1600 lines)
-- `nicegui_app/dialogs.py` - Download, search, and other dialogs (~800 lines)
-- `nicegui_app/visualization.py` - Plotting functions (~600 lines)
-- `nicegui_app/storage_browser.py` - Storage browser UI (~400 lines)
-- `nicegui_app/dashboard.py` - Main dashboard page (~350 lines)
-
 ### ⏳ panel_dashboard_fastapi.py (771 lines)
+**Priority**: MEDIUM
 **Suggested split**:
 - `panel_dashboard/__init__.py` - Main dashboard
 - `panel_dashboard/plotting.py` - Plotting functions
 - `panel_dashboard/components.py` - UI components
-
-### ⏳ file_exporter.py (564 lines)
-**Suggested split**:
-- `file_exporter/__init__.py` - Main exporter class
-- `file_exporter/formats.py` - Format-specific exporters
-
-### ⏳ main.py (325 lines)
-**Suggested split**:
-- `main.py` - Core application class (keep as is, slightly over limit)
-- OR split into `app/__init__.py` and `app/core.py`
-
-### ⏳ modal_functions/data_processing.py (291 lines)
-**Suggested split**:
-- `modal_functions/data_processing.py` - Main processing
-- `modal_functions/transformations.py` - Transformation functions
+- `panel_dashboard/routes.py` - FastAPI routes
 
 ## Import Updates Required
 
 After splitting, update imports in:
-- `nicegui_app.py` → Update imports for `data_cleaner`, `redis_client`, `file_formats`
-- `file_loader.py` → Update import for `file_formats`
-- `main.py` → Update imports if needed
-- Any other files importing these modules
+- ✅ `nicegui_app.py` → Updated for `data_cleaner`, `redis_client`, `file_formats` (via new package structure)
+- ✅ `file_loader.py` → Should work with new `file_formats` package structure
+- ✅ `main.py` → Updated to use `app` package
+- ⏳ `nicegui_app.py` → Needs to be refactored to use new `nicegui_app` package modules
+- ⏳ `run_nicegui.py` → May need update if `nicegui_app` package structure changes
 
 ## Notes
 
 - All splits maintain backward compatibility through `__init__.py` files
-- Original files should be kept until all imports are updated and tested
+- Original files are kept as backward compatibility wrappers where needed
 - Test after each split to ensure functionality is preserved
+- The `nicegui_app.py` file is the largest remaining file and requires careful refactoring
+
+## Next Steps
+
+1. Complete the `nicegui_app.py` split by extracting:
+   - Navigation bar component (~1600 lines)
+   - Dashboard page (~2000 lines)
+   - Dialog components (~800 lines)
+   - Visualization functions (~600 lines)
+   - Storage browser UI (~400 lines)
+
+2. Split `panel_dashboard_fastapi.py` into logical modules
+
+3. Update all imports and test functionality
+
+4. Remove backward compatibility wrappers once all imports are updated
