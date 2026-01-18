@@ -41,7 +41,7 @@ Comprehensive guide to time-series data formats that can be supported in VARIOSY
 
 #### 3. **Apache ORC** (.orc)
 - **Description**: Optimized Row Columnar format (Hadoop ecosystem)
-- **Use Case**: Big data analytics, Hive/Spark integration
+- **Use Case**: Big data analytics, Hive/Spark integratio
 - **Pros**: Excellent compression, predicate pushdown, good for analytics
 - **Cons**: Less common than Parquet, Hadoop ecosystem dependency
 - **Library**: `pyarrow` (supports ORC)

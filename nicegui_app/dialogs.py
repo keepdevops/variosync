@@ -862,10 +862,15 @@ def show_search_dialog():
             
             search_input = ui.input(placeholder="Search records, series, metrics...").classes("w-full")
             
-            # Filters
+            # Filters - get all supported formats dynamically
+            from file_exporter import FileExporter
+            exporter = FileExporter()
+            all_formats = exporter.get_supported_formats()
+            file_type_options = ["All"] + sorted(all_formats)
+            
             with ui.row().classes("w-full gap-2"):
                 file_type_filter = ui.select(
-                    ["All", "json", "csv", "parquet", "duckdb"],
+                    file_type_options,
                     label="File Type",
                     value="All"
                 ).classes("flex-1")

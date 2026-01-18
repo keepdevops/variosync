@@ -844,14 +844,18 @@ def dashboard_page():
                             ui.label(f"📥 Download: {Path(file_key).name}").classes("text-xl font-semibold mb-4")
                             ui.label(f"Found {len(records)} records. Choose export format:").classes("text-sm mb-4")
                             
-                            # Format selector - all supported formats
+                            # Format selector - get all supported formats dynamically
+                            from file_exporter import FileExporter
+                            exporter = FileExporter()
+                            all_formats = exporter.get_supported_formats()
+                            
                             format_select = ui.select(
-                                ["json", "jsonl", "csv", "txt", "parquet", "feather", "duckdb", "xlsx", "xls", "h5", "arrow", "avro", "orc", "msgpack", "sqlite", "influxdb"],
+                                all_formats,
                                 label="Export Format",
                                 value="json"
                             ).classes("w-full mb-4")
                             
-                            # Format descriptions
+                            # Format descriptions - comprehensive list
                             format_descriptions = {
                                 "json": "JSON - Human-readable, good for APIs",
                                 "jsonl": "JSONL - JSON Lines, streaming-friendly",
@@ -868,7 +872,19 @@ def dashboard_page():
                                 "orc": "Apache ORC - Optimized Row Columnar format",
                                 "msgpack": "MessagePack - Efficient binary JSON",
                                 "sqlite": "SQLite - Portable SQL database",
-                                "influxdb": "InfluxDB Line Protocol - TSDB ingestion format"
+                                "influxdb": "InfluxDB Line Protocol - TSDB ingestion format",
+                                "protobuf": "Protocol Buffers - Efficient binary serialization",
+                                "opentsdb": "OpenTSDB - Time-series database format",
+                                "prometheus": "Prometheus Remote Write - Monitoring format",
+                                "gzip": "Gzip - Compressed format (specify base_format)",
+                                "bzip2": "Bzip2 - Compressed format (specify base_format)",
+                                "zstandard": "Zstandard - Modern compression (specify base_format)",
+                                "netcdf": "NetCDF - Scientific data format",
+                                "zarr": "Zarr - Chunked compressed arrays",
+                                "fits": "FITS - Astronomy format",
+                                "tsfile": "TsFile - Apache IoTDB format",
+                                "tdengine": "TDengine - High-performance TSDB format",
+                                "victoriametrics": "VictoriaMetrics - Prometheus-compatible format"
                             }
                             
                             format_desc_label = ui.label(format_descriptions.get(format_select.value, "")).classes("text-xs text-gray-500 mb-4")
@@ -899,8 +915,14 @@ def dashboard_page():
                                     temp_output = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
                                     temp_output.close()
                                     
+                                    # Handle compression formats that need base_format
+                                    export_kwargs = {}
+                                    if export_format in ["gzip", "bzip2", "zstandard"]:
+                                        # For compression formats, default to JSON as base
+                                        export_kwargs["base_format"] = "json"
+                                    
                                     # Export data
-                                    success = FileExporter.export(records, temp_output.name, export_format)
+                                    success = FileExporter.export(records, temp_output.name, export_format, **export_kwargs)
                                     
                                     if success:
                                         # Read the exported file

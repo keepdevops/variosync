@@ -7,6 +7,10 @@ from typing import Any, Dict, List, Optional
 from .text import TextExporter
 from .binary import BinaryExporter
 from .specialized import SpecializedExporter
+from .tsdb import TSDBExporter
+from .compression import CompressionExporter
+from .scientific import ScientificExporter
+from .specialized_ts import SpecializedTSExporter
 
 SUPPORTED_FORMATS = {
     "json": {"ext": ".json", "mime": "application/json"},
@@ -25,6 +29,18 @@ SUPPORTED_FORMATS = {
     "msgpack": {"ext": ".msgpack", "mime": "application/x-msgpack"},
     "sqlite": {"ext": ".sqlite", "mime": "application/x-sqlite3"},
     "influxdb": {"ext": ".lp", "mime": "text/plain"},
+    "protobuf": {"ext": ".pb", "mime": "application/x-protobuf"},
+    "opentsdb": {"ext": ".tsdb", "mime": "text/plain"},
+    "prometheus": {"ext": ".prom", "mime": "application/x-protobuf"},
+    "gzip": {"ext": ".gz", "mime": "application/gzip"},
+    "bzip2": {"ext": ".bz2", "mime": "application/x-bzip2"},
+    "zstandard": {"ext": ".zst", "mime": "application/zstd"},
+    "netcdf": {"ext": ".nc", "mime": "application/netcdf"},
+    "zarr": {"ext": ".zarr", "mime": "application/zarr"},
+    "fits": {"ext": ".fits", "mime": "application/fits"},
+    "tsfile": {"ext": ".tsfile", "mime": "application/octet-stream"},
+    "tdengine": {"ext": ".td", "mime": "text/plain"},
+    "victoriametrics": {"ext": ".vm", "mime": "application/json"},
 }
 
 
@@ -90,7 +106,31 @@ class FileExporter:
         elif format_lower == "sqlite":
             return SpecializedExporter.export_to_sqlite(data, output_path, **kwargs)
         elif format_lower in ["influxdb", "lp"]:
-            return SpecializedExporter.export_to_influxdb_lp(data, output_path, **kwargs)
+            return TSDBExporter.export_to_influxdb_lp(data, output_path, **kwargs)
+        elif format_lower in ["protobuf", "pb"]:
+            return SpecializedExporter.export_to_protobuf(data, output_path, **kwargs)
+        elif format_lower == "opentsdb":
+            return TSDBExporter.export_to_opentsdb(data, output_path, **kwargs)
+        elif format_lower in ["prometheus", "prom"]:
+            return TSDBExporter.export_to_prometheus_remote_write(data, output_path)
+        elif format_lower in ["gzip", "gz"]:
+            return CompressionExporter.export_to_gzip(data, output_path, **kwargs)
+        elif format_lower in ["bzip2", "bz2"]:
+            return CompressionExporter.export_to_bzip2(data, output_path, **kwargs)
+        elif format_lower in ["zstandard", "zst", "zstd"]:
+            return CompressionExporter.export_to_zstandard(data, output_path, **kwargs)
+        elif format_lower in ["netcdf", "nc", "netcdf", "cdf"]:
+            return ScientificExporter.export_to_netcdf(data, output_path, **kwargs)
+        elif format_lower == "zarr":
+            return ScientificExporter.export_to_zarr(data, output_path, **kwargs)
+        elif format_lower in ["fits", "fit"]:
+            return ScientificExporter.export_to_fits(data, output_path, **kwargs)
+        elif format_lower == "tsfile":
+            return SpecializedTSExporter.export_to_tsfile(data, output_path, **kwargs)
+        elif format_lower in ["tdengine", "td"]:
+            return SpecializedTSExporter.export_to_tdengine(data, output_path, **kwargs)
+        elif format_lower in ["victoriametrics", "vm"]:
+            return SpecializedTSExporter.export_to_victoriametrics(data, output_path, **kwargs)
         else:
             from logger import get_logger
             logger = get_logger()

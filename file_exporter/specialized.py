@@ -1,8 +1,9 @@
 """
-Specialized format exporters (Avro, ORC, MessagePack, SQLite, InfluxDB).
+Specialized format exporters (Avro, ORC, MessagePack, SQLite, Protocol Buffers).
 """
 from typing import Any, Dict, List, Optional
 from datetime import datetime
+import json
 
 from logger import get_logger
 
@@ -142,45 +143,73 @@ class SpecializedExporter:
             return False
     
     @staticmethod
-    def export_to_influxdb_lp(data: List[Dict[str, Any]], output_path: str, measurement: str = "time_series") -> bool:
-        """Export data to InfluxDB Line Protocol format."""
+    def export_to_protobuf(data: List[Dict[str, Any]], output_path: str, schema_path: Optional[str] = None) -> bool:
+        """Export data to Protocol Buffers format."""
         try:
-            with open(output_path, "w", encoding="utf-8") as f:
-                for record in data:
-                    series_id = record.get("series_id", measurement)
-                    
-                    timestamp = record.get("timestamp", "")
+            from google.protobuf import message
+            from google.protobuf import json_format
+            import google.protobuf.descriptor_pb2 as descriptor_pb2
+            
+            if not data:
+                logger.warning("No data to export")
+                return False
+            
+            # For simplicity, we'll use JSON encoding with protobuf structure
+            # Full protobuf implementation would require .proto schema files
+            # This is a simplified approach that creates a protobuf-compatible JSON structure
+            protobuf_data = {
+                "records": []
+            }
+            
+            for record in data:
+                pb_record = {}
+                
+                # Add series_id
+                if "series_id" in record:
+                    pb_record["series_id"] = str(record["series_id"])
+                
+                # Add timestamp
+                if "timestamp" in record:
+                    timestamp = record["timestamp"]
                     if isinstance(timestamp, str):
                         try:
                             dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
-                            ts_ns = int(dt.timestamp() * 1e9)
+                            pb_record["timestamp"] = int(dt.timestamp() * 1e9)
                         except:
-                            ts_ns = ""
+                            pb_record["timestamp"] = str(timestamp)
                     elif isinstance(timestamp, (int, float)):
-                        ts_ns = int(timestamp * 1e9) if timestamp < 1e10 else int(timestamp)
+                        pb_record["timestamp"] = int(timestamp * 1e9) if timestamp < 1e10 else int(timestamp)
                     else:
-                        ts_ns = ""
-                    
-                    fields = []
-                    if "measurements" in record and isinstance(record["measurements"], dict):
-                        for key, value in record["measurements"].items():
-                            if isinstance(value, (int, float)):
-                                fields.append(f"{key}={value}")
-                            elif isinstance(value, bool):
-                                fields.append(f"{key}={str(value).lower()}")
-                            else:
-                                fields.append(f'{key}="{value}"')
-                    
-                    line = f"{series_id}"
-                    if fields:
-                        line += f" {','.join(fields)}"
-                    if ts_ns:
-                        line += f" {ts_ns}"
-                    
-                    f.write(line + "\n")
+                        pb_record["timestamp"] = str(timestamp)
+                
+                # Add measurements as fields
+                if "measurements" in record and isinstance(record["measurements"], dict):
+                    pb_record["fields"] = {}
+                    for key, value in record["measurements"].items():
+                        if isinstance(value, (int, float)):
+                            pb_record["fields"][key] = float(value)
+                        elif isinstance(value, bool):
+                            pb_record["fields"][key] = bool(value)
+                        else:
+                            pb_record["fields"][key] = str(value)
+                
+                # Add metadata if present
+                if "metadata" in record:
+                    pb_record["metadata"] = record["metadata"]
+                
+                protobuf_data["records"].append(pb_record)
             
-            logger.info(f"Exported {len(data)} records to InfluxDB Line Protocol: {output_path}")
+            # Write as JSON (protobuf-compatible structure)
+            # For full protobuf binary format, would need .proto schema compilation
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(protobuf_data, f, indent=2, default=str)
+            
+            logger.info(f"Exported {len(data)} records to Protocol Buffers JSON format: {output_path}")
+            logger.warning("Note: Full binary protobuf requires .proto schema files. Using JSON-compatible format.")
             return True
+        except ImportError:
+            logger.error("protobuf required for Protocol Buffers export. Install with: pip install protobuf")
+            return False
         except Exception as e:
-            logger.error(f"Error exporting to InfluxDB Line Protocol: {e}")
+            logger.error(f"Error exporting to Protocol Buffers: {e}")
             return False
