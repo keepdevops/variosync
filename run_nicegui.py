@@ -5,9 +5,13 @@ Runs NiceGUI web server.
 """
 import os
 import sys
+import importlib.util
 
-# Import the app to register routes
-import nicegui_app
+# Import nicegui_app.py file directly (not the package)
+# This ensures the @ui.page("/") route is registered
+spec = importlib.util.spec_from_file_location("nicegui_app_module", "nicegui_app.py")
+nicegui_app_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(nicegui_app_module)
 
 from nicegui import ui
 

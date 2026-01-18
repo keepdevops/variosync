@@ -64,6 +64,11 @@ class FormatConverter:
             ".bz2": "bzip2",
             ".zst": "zstandard",
             ".zstd": "zstandard",
+            # Archive formats
+            ".zip": "zip",
+            ".tar": "tar",
+            ".tar.gz": "tar",
+            ".tar.bz2": "tar",
             # Scientific formats
             ".nc": "netcdf",
             ".netcdf": "netcdf",

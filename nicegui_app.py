@@ -386,6 +386,19 @@ def dashboard_page():
                         status_label.text = f"📁 File ready: {file_name} ({size_str})"
                         file_info_label.text = f"📄 {file_name} • {size_str} • Ready to process"
                         file_info_label.visible = True
+                        
+                        # Show format selector when file is uploaded
+                        format_selector.visible = True
+                        
+                        # Auto-detect and set format if possible
+                        detected_format = loader.detect_format(file_name)
+                        if detected_format:
+                            # Find matching option in format_selector
+                            for i, opt in enumerate(format_options):
+                                if opt == detected_format:
+                                    format_selector.value = opt
+                                    break
+                        
                         process_button.set_enabled(True)
                         plotly_button.set_enabled(True)
                         plotly_format_select.visible = True
@@ -401,11 +414,43 @@ def dashboard_page():
                         status_label.text = f"❌ Upload error: {str(ex)}"
                         ui.notify(f"Upload error: {str(ex)}", type="negative")
                 
+                # Format selector (optional, for manual override)
+                from file_loader import FileLoader
+                loader = FileLoader()
+                supported_formats = loader.get_supported_formats()
+                format_options = ["Auto-detect"] + sorted(supported_formats)
+                
+                format_selector = ui.select(
+                    format_options,
+                    label="File Format (optional)",
+                    value="Auto-detect"
+                ).classes("w-full")
+                format_selector.visible = False  # Hidden by default, shown when needed
+                
                 file_upload = ui.upload(
-                    label="Drop file or click to browse",
+                    label=f"Drop file or click to browse (Supports: {len(supported_formats)} formats)",
                     auto_upload=False,
                     on_upload=handle_upload
                 ).classes("w-full")
+                
+                # Show supported formats hint
+                formats_list = sorted(supported_formats)
+                formats_preview = ', '.join(formats_list[:8])
+                formats_hint = ui.label(
+                    f"📋 Supported formats ({len(supported_formats)}): {formats_preview}... (click to see all)"
+                ).classes("text-xs text-gray-500 mt-1 cursor-pointer")
+                
+                # Expandable formats list
+                formats_expanded = False
+                def toggle_formats():
+                    nonlocal formats_expanded
+                    formats_expanded = not formats_expanded
+                    if formats_expanded:
+                        formats_hint.text = f"📋 Supported formats ({len(supported_formats)}): {', '.join(formats_list)}"
+                    else:
+                        formats_hint.text = f"📋 Supported formats ({len(supported_formats)}): {formats_preview}... (click to see all)"
+                
+                formats_hint.on('click', toggle_formats)
                 
                 # File info display
                 file_info_label = ui.label("").classes("text-sm text-gray-600")
@@ -734,10 +779,15 @@ def dashboard_page():
                         # Process file using VariosyncApp
                         app = get_app_instance()
                         
+                        # Get format if manually specified
+                        file_format = None
+                        if format_selector.value != "Auto-detect":
+                            file_format = format_selector.value
+                        
                         # Get processing stats by checking storage before/after
                         keys_before = set(app.storage.list_keys() if app.storage else [])
                         
-                        success = app.process_data_file(temp_path, record_type.value)
+                        success = app.process_data_file(temp_path, record_type.value, file_format=file_format)
                         
                         # Get keys after processing
                         keys_after = set(app.storage.list_keys() if app.storage else [])
@@ -1151,10 +1201,10 @@ def dashboard_page():
                                     with preview_container:
                                         ui.label(f"✅ Preview: {len(preview_df)} rows (was {len(df)} rows)").classes("text-sm font-semibold text-green-600 mb-2")
                                         
-                                        # Show first few rows
+                                        # Show first 200 rows
                                         preview_table = ui.table(
                                             columns=[{"name": col, "label": col, "field": col} for col in preview_df.columns[:10]],
-                                            rows=preview_df.head(20).to_dict('records'),
+                                            rows=preview_df.head(200).to_dict('records'),
                                             row_key="index"
                                         ).classes("w-full")
                                         
@@ -1578,13 +1628,20 @@ def dashboard_page():
 # =============================================================================
 # API ROUTES (if needed)
 # =============================================================================
-# Health endpoint - NiceGUI uses FastAPI under the hood
-from nicegui import app
+# Health endpoint is defined in nicegui_app/health.py
+# Import it to register the route
+from nicegui_app.health import health_check
 
-@app.get("/health")
-def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy", "storage": True, "auth": True}
+# Favicon route handler - serve favicon to prevent 404 errors
+from nicegui import app
+from fastapi.responses import Response
+
+@app.get("/favicon.ico")
+def favicon():
+    """Serve favicon to prevent 404 errors when browsers request /favicon.ico."""
+    # Use the same SVG icon from the HTML head, served as SVG
+    FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#3b82f6"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>"""
+    return Response(content=FAVICON_SVG, media_type="image/svg+xml")
 
 
 # Note: ui.run() is called from run_nicegui.py

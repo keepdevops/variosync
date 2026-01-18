@@ -1,13 +1,16 @@
 """
-Compression format exporters (Gzip, Bzip2, Zstandard).
-These formats compress text-based data formats like JSON, CSV, TXT.
+Compression and archive format exporters (Gzip, Bzip2, Zstandard, ZIP, TAR).
+These formats compress and archive text-based data formats like JSON, CSV, TXT.
 """
 import gzip
 import bz2
 import json
 import csv
 import io
+import zipfile
+import tarfile
 from typing import Any, Dict, List, Optional, Callable
+from pathlib import Path
 
 from logger import get_logger
 
@@ -104,32 +107,31 @@ class CompressionExporter:
             raise ValueError(f"Unsupported base format: {base_format}")
     
     @staticmethod
+    def _compress_with_gzip(data: str, output_path: str) -> None:
+        """Compress data with gzip."""
+        with gzip.open(output_path, "wt", encoding="utf-8") as f:
+            f.write(data)
+    
+    @staticmethod
+    def _compress_with_bzip2(data: str, output_path: str) -> None:
+        """Compress data with bzip2."""
+        with bz2.open(output_path, "wt", encoding="utf-8") as f:
+            f.write(data)
+    
+    @staticmethod
     def export_to_gzip(
         data: List[Dict[str, Any]], 
         output_path: str, 
         base_format: str = "json",
         **kwargs
     ) -> bool:
-        """
-        Export data to Gzip-compressed format.
-        
-        Args:
-            data: List of data records
-            output_path: Output file path (.gz)
-            base_format: Base format to compress (json, csv, txt, jsonl)
-            **kwargs: Format-specific options
-        """
+        """Export data to Gzip-compressed format."""
         try:
             formatted_data = CompressionExporter._get_format_data(data, base_format, **kwargs)
-            with gzip.open(output_path, "wt", encoding="utf-8") as f:
-                f.write(formatted_data)
-            
+            CompressionExporter._compress_with_gzip(formatted_data, output_path)
             logger.info(f"Exported {len(data)} records to Gzip-compressed {base_format}: {output_path}")
             return True
-        except ValueError as e:
-            logger.error(str(e))
-            return False
-        except Exception as e:
+        except (ValueError, Exception) as e:
             logger.error(f"Error exporting to Gzip: {e}")
             return False
     
@@ -140,26 +142,13 @@ class CompressionExporter:
         base_format: str = "json",
         **kwargs
     ) -> bool:
-        """
-        Export data to Bzip2-compressed format.
-        
-        Args:
-            data: List of data records
-            output_path: Output file path (.bz2)
-            base_format: Base format to compress (json, csv, txt, jsonl)
-            **kwargs: Format-specific options
-        """
+        """Export data to Bzip2-compressed format."""
         try:
             formatted_data = CompressionExporter._get_format_data(data, base_format, **kwargs)
-            with bz2.open(output_path, "wt", encoding="utf-8") as f:
-                f.write(formatted_data)
-            
+            CompressionExporter._compress_with_bzip2(formatted_data, output_path)
             logger.info(f"Exported {len(data)} records to Bzip2-compressed {base_format}: {output_path}")
             return True
-        except ValueError as e:
-            logger.error(str(e))
-            return False
-        except Exception as e:
+        except (ValueError, Exception) as e:
             logger.error(f"Error exporting to Bzip2: {e}")
             return False
     
@@ -171,16 +160,7 @@ class CompressionExporter:
         compression_level: int = 3,
         **kwargs
     ) -> bool:
-        """
-        Export data to Zstandard-compressed format.
-        
-        Args:
-            data: List of data records
-            output_path: Output file path (.zst or .zstd)
-            base_format: Base format to compress (json, csv, txt, jsonl)
-            compression_level: Compression level (1-22, default 3)
-            **kwargs: Format-specific options
-        """
+        """Export data to Zstandard-compressed format."""
         try:
             import zstandard as zstd
             
@@ -194,11 +174,62 @@ class CompressionExporter:
             logger.info(f"Exported {len(data)} records to Zstandard-compressed {base_format}: {output_path}")
             return True
         except ImportError:
-            logger.error("zstandard required for Zstandard export. Install with: pip install zstandard")
+            logger.error("zstandard required. Install with: pip install zstandard")
             return False
-        except ValueError as e:
-            logger.error(str(e))
-            return False
-        except Exception as e:
+        except (ValueError, Exception) as e:
             logger.error(f"Error exporting to Zstandard: {e}")
+            return False
+    
+    @staticmethod
+    def export_to_zip(
+        data: List[Dict[str, Any]], 
+        output_path: str, 
+        base_format: str = "json",
+        **kwargs
+    ) -> bool:
+        """Export data to ZIP archive format."""
+        try:
+            formatted_data = CompressionExporter._get_format_data(data, base_format, **kwargs)
+            archive_name = kwargs.get("archive_name", f"data.{base_format}")
+            
+            with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+                zipf.writestr(archive_name, formatted_data.encode("utf-8"))
+            
+            logger.info(f"Exported {len(data)} records to ZIP archive ({base_format}): {output_path}")
+            return True
+        except (ValueError, Exception) as e:
+            logger.error(f"Error exporting to ZIP: {e}")
+            return False
+    
+    @staticmethod
+    def export_to_tar(
+        data: List[Dict[str, Any]], 
+        output_path: str, 
+        base_format: str = "json",
+        compression: str = None,
+        **kwargs
+    ) -> bool:
+        """Export data to TAR archive format."""
+        try:
+            formatted_data = CompressionExporter._get_format_data(data, base_format, **kwargs)
+            archive_name = kwargs.get("archive_name", f"data.{base_format}")
+            
+            if compression == "gz" or output_path.endswith(".tar.gz"):
+                mode = "w:gz"
+            elif compression == "bz2" or output_path.endswith(".tar.bz2"):
+                mode = "w:bz2"
+            else:
+                mode = "w"
+            
+            data_bytes = formatted_data.encode("utf-8")
+            with tarfile.open(output_path, mode) as tarf:
+                tarinfo = tarfile.TarInfo(name=archive_name)
+                tarinfo.size = len(data_bytes)
+                tarf.addfile(tarinfo, io.BytesIO(data_bytes))
+            
+            comp_str = f" ({compression})" if compression else ""
+            logger.info(f"Exported {len(data)} records to TAR archive{comp_str} ({base_format}): {output_path}")
+            return True
+        except (ValueError, Exception) as e:
+            logger.error(f"Error exporting to TAR: {e}")
             return False

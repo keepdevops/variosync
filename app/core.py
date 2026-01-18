@@ -76,14 +76,30 @@ class VariosyncApp:
             True if successful
         """
         try:
+            from pathlib import Path
+            
+            # Check if file exists
+            if not Path(file_path).exists():
+                logger.error(f"File not found: {file_path}")
+                return False
+            
             loader = FileLoader()
             records = loader.load(file_path, file_format)
             
             if not records:
-                logger.error(f"No records loaded from {file_path}")
+                # Try to provide more helpful error message
+                ext = Path(file_path).suffix.lower()
+                if ext == ".txt":
+                    logger.error(f"No records loaded from {file_path}. File might be empty, have wrong delimiter, or invalid format. Try specifying format='stooq' for Stooq format files.")
+                else:
+                    logger.error(f"No records loaded from {file_path}. File might be empty or have invalid format.")
                 return False
             
             processed = self.processor.process_batch(records, record_type)
+            
+            if not processed:
+                logger.error(f"No records processed from {file_path} (loaded {len(records)} but processing failed)")
+                return False
             
             success_count = 0
             for record in processed:
@@ -94,7 +110,7 @@ class VariosyncApp:
             return success_count > 0
             
         except Exception as e:
-            logger.error(f"Error processing file {file_path}: {e}")
+            logger.error(f"Error processing file {file_path}: {e}", exc_info=True)
             return False
     
     def convert_csv_to_duckdb(

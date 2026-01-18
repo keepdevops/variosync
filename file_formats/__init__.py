@@ -5,6 +5,7 @@ Handles loading data from specific file formats.
 from .text import TextFormatHandlers
 from .binary import BinaryFormatHandlers
 from .converters import FormatConverters
+from .stooq import StooqFormatHandler
 
 from logger import get_logger
 
@@ -28,6 +29,11 @@ class FormatHandlers:
     def load_txt(file_path: str, delimiter: str = "\t") -> list:
         """Load data from TXT file."""
         return TextFormatHandlers.load_txt(file_path, delimiter)
+    
+    @staticmethod
+    def load_stooq(file_path: str) -> list:
+        """Load data from Stooq format file."""
+        return StooqFormatHandler.load_stooq(file_path)
     
     @staticmethod
     def load_parquet(file_path: str) -> list:

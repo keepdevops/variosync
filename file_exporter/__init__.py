@@ -11,6 +11,8 @@ from .tsdb import TSDBExporter
 from .compression import CompressionExporter
 from .scientific import ScientificExporter
 from .specialized_ts import SpecializedTSExporter
+from .database import DatabaseExporter
+from .stooq import StooqExporter
 
 SUPPORTED_FORMATS = {
     "json": {"ext": ".json", "mime": "application/json"},
@@ -35,12 +37,17 @@ SUPPORTED_FORMATS = {
     "gzip": {"ext": ".gz", "mime": "application/gzip"},
     "bzip2": {"ext": ".bz2", "mime": "application/x-bzip2"},
     "zstandard": {"ext": ".zst", "mime": "application/zstd"},
+    "zip": {"ext": ".zip", "mime": "application/zip"},
+    "tar": {"ext": ".tar", "mime": "application/x-tar"},
     "netcdf": {"ext": ".nc", "mime": "application/netcdf"},
     "zarr": {"ext": ".zarr", "mime": "application/zarr"},
     "fits": {"ext": ".fits", "mime": "application/fits"},
     "tsfile": {"ext": ".tsfile", "mime": "application/octet-stream"},
     "tdengine": {"ext": ".td", "mime": "text/plain"},
     "victoriametrics": {"ext": ".vm", "mime": "application/json"},
+    "timescaledb": {"ext": ".sql", "mime": "application/sql"},
+    "questdb": {"ext": ".ilp", "mime": "text/plain"},
+    "stooq": {"ext": ".txt", "mime": "text/csv"},
 }
 
 
@@ -83,6 +90,8 @@ class FileExporter:
             return TextExporter.export_to_csv(data, output_path, **kwargs)
         elif format_lower == "txt":
             return TextExporter.export_to_txt(data, output_path, **kwargs)
+        elif format_lower == "stooq":
+            return StooqExporter.export_to_stooq(data, output_path, **kwargs)
         elif format_lower == "parquet":
             return BinaryExporter.export_to_parquet(data, output_path)
         elif format_lower == "feather":
@@ -119,6 +128,10 @@ class FileExporter:
             return CompressionExporter.export_to_bzip2(data, output_path, **kwargs)
         elif format_lower in ["zstandard", "zst", "zstd"]:
             return CompressionExporter.export_to_zstandard(data, output_path, **kwargs)
+        elif format_lower == "zip":
+            return CompressionExporter.export_to_zip(data, output_path, **kwargs)
+        elif format_lower in ["tar", "tar.gz", "tar.bz2"]:
+            return CompressionExporter.export_to_tar(data, output_path, **kwargs)
         elif format_lower in ["netcdf", "nc", "netcdf", "cdf"]:
             return ScientificExporter.export_to_netcdf(data, output_path, **kwargs)
         elif format_lower == "zarr":
@@ -131,6 +144,10 @@ class FileExporter:
             return SpecializedTSExporter.export_to_tdengine(data, output_path, **kwargs)
         elif format_lower in ["victoriametrics", "vm"]:
             return SpecializedTSExporter.export_to_victoriametrics(data, output_path, **kwargs)
+        elif format_lower in ["timescaledb", "tsdb"]:
+            return DatabaseExporter.export_to_timescaledb(data, output_path, **kwargs)
+        elif format_lower in ["questdb", "qdb"]:
+            return DatabaseExporter.export_to_questdb(data, output_path, **kwargs)
         else:
             from logger import get_logger
             logger = get_logger()
