@@ -1284,8 +1284,44 @@ def dashboard_page():
                             ui.notify("No data found in file", type="warning")
                             return
                         
+                        # Expand measurements dict into columns for better visualization
+                        expanded_records = []
+                        for record in records:
+                            expanded = {}
+                            # Copy top-level fields
+                            for key, value in record.items():
+                                if key != "measurements":
+                                    expanded[key] = value
+                            
+                            # Expand measurements dict into columns
+                            if "measurements" in record and isinstance(record["measurements"], dict):
+                                for m_key, m_value in record["measurements"].items():
+                                    expanded[m_key] = m_value
+                            else:
+                                # If no measurements dict, try to use the record as-is
+                                expanded.update(record)
+                            
+                            expanded_records.append(expanded)
+                        
                         # Convert to DataFrame
-                        df = pd.DataFrame(records)
+                        df = pd.DataFrame(expanded_records)
+                        
+                        # Ensure timestamp column exists and is datetime
+                        if 'timestamp' in df.columns:
+                            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+                            df = df.sort_values('timestamp')
+                            # Remove rows with invalid timestamps
+                            df = df.dropna(subset=['timestamp'])
+                        
+                        logger.info(f"Loaded {len(records)} records, expanded to {len(df)} rows with {len(df.columns)} columns for visualization")
+                        
+                        if len(df) == 0:
+                            ui.notify("No valid data points found after processing", type="warning")
+                            return
+                        
+                        if len(df) == 1:
+                            logger.warning(f"Only 1 data point found. File may contain only one record or data format issue.")
+                            ui.notify(f"Warning: Only 1 data point found. Check data format.", type="warning")
                         
                         with ui.dialog() as viz_dialog, ui.card().classes("w-full max-w-7xl max-h-[90vh] overflow-auto"):
                             ui.label(f"📊 Data Visualization: {Path(file_key).name}").classes("text-xl font-semibold mb-4")
@@ -1298,16 +1334,38 @@ def dashboard_page():
                             ).classes("w-full mb-4")
                             
                             # Column selectors
+                            # Filter out non-plottable columns for X axis
+                            x_options = [col for col in df.columns if col not in ['series_id', 'metadata', 'format']]
                             x_col = ui.select(
-                                list(df.columns),
+                                x_options,
                                 label="X Axis",
-                                value="timestamp" if "timestamp" in df.columns else list(df.columns)[0]
+                                value="timestamp" if "timestamp" in x_options else (x_options[0] if x_options else None)
                             ).classes("w-full mb-2")
                             
+                            # Get numeric columns for Y axis (exclude X axis column and non-numeric)
+                            numeric_cols = list(df.select_dtypes(include=['number']).columns)
+                            # Also include string columns that might be numeric (like 'close', 'open' from measurements)
+                            for col in df.columns:
+                                if col not in numeric_cols and col != x_col.value:
+                                    # Check if column can be converted to numeric
+                                    try:
+                                        pd.to_numeric(df[col].dropna().head(10), errors='raise')
+                                        if col not in numeric_cols:
+                                            numeric_cols.append(col)
+                                    except:
+                                        pass
+                            
+                            # Remove X axis column from Y options
+                            y_options = [col for col in numeric_cols if col != x_col.value]
+                            if not y_options:
+                                # Fallback: use all columns except X axis
+                                y_options = [col for col in df.columns if col != x_col.value and col not in ['series_id', 'metadata', 'format']]
+                            
                             y_cols = ui.select(
-                                list(df.select_dtypes(include=['number']).columns) if len(df.select_dtypes(include=['number']).columns) > 0 else list(df.columns),
-                                label="Y Axis",
-                                multiple=True
+                                y_options,
+                                label="Y Axis (select one or more)",
+                                multiple=True,
+                                value=y_options[:3] if len(y_options) >= 3 else y_options  # Auto-select first 3 or all if less
                             ).classes("w-full mb-2")
                             
                             # Chart options
@@ -1332,12 +1390,35 @@ def dashboard_page():
                                         ui.label("Please select at least one Y axis column").classes("text-red-500")
                                         return
                                     
-                                    # Prepare data
-                                    plot_df = df[[x_col_val] + y_cols_val].copy()
-                                    plot_df = plot_df.dropna()
+                                    # Prepare data - ensure we have all columns
+                                    cols_to_plot = [x_col_val] + (y_cols_val if isinstance(y_cols_val, list) else [y_cols_val])
+                                    cols_to_plot = [col for col in cols_to_plot if col in df.columns]
+                                    
+                                    if not cols_to_plot:
+                                        ui.label("No valid columns selected for plotting").classes("text-red-500")
+                                        return
+                                    
+                                    plot_df = df[cols_to_plot].copy()
+                                    
+                                    # Convert Y columns to numeric
+                                    for col in y_cols_val:
+                                        if col in plot_df.columns:
+                                            plot_df[col] = pd.to_numeric(plot_df[col], errors='coerce')
+                                    
+                                    # Drop rows where X or all Y values are NaN
+                                    plot_df = plot_df.dropna(subset=[x_col_val])
+                                    # Keep rows where at least one Y column has a value
+                                    y_has_data = plot_df[y_cols_val].notna().any(axis=1)
+                                    plot_df = plot_df[y_has_data]
                                     
                                     if len(plot_df) == 0:
-                                        ui.label("No data to plot after removing NaN values").classes("text-red-500")
+                                        ui.label("No data to plot after removing NaN values. Check column selections.").classes("text-red-500")
+                                        return
+                                    
+                                    logger.info(f"Plotting {len(plot_df)} data points with X={x_col_val}, Y={y_cols_val}")
+                                    
+                                    if len(plot_df) == 0:
+                                        ui.label("No data points to plot. Check column selections and data format.").classes("text-red-500")
                                         return
                                     
                                     # Create Plotly figure
@@ -1345,22 +1426,26 @@ def dashboard_page():
                                     
                                     if chart_type_val == "line":
                                         for col in y_cols_val:
+                                            # Ensure data is sorted by X axis for proper line plotting
+                                            sorted_df = plot_df.sort_values(x_col_val)
                                             fig.add_trace(go.Scatter(
-                                                x=plot_df[x_col_val],
-                                                y=plot_df[col],
+                                                x=sorted_df[x_col_val],
+                                                y=sorted_df[col],
                                                 mode='lines+markers',
                                                 name=col,
-                                                line=dict(width=2)
+                                                line=dict(width=2),
+                                                marker=dict(size=4 if len(sorted_df) > 100 else 6)  # Smaller markers for many points
                                             ))
                                     
                                     elif chart_type_val == "scatter":
                                         for col in y_cols_val:
+                                            sorted_df = plot_df.sort_values(x_col_val)
                                             fig.add_trace(go.Scatter(
-                                                x=plot_df[x_col_val],
-                                                y=plot_df[col],
+                                                x=sorted_df[x_col_val],
+                                                y=sorted_df[col],
                                                 mode='markers',
                                                 name=col,
-                                                marker=dict(size=5)
+                                                marker=dict(size=5 if len(sorted_df) > 100 else 8)
                                             ))
                                     
                                     elif chart_type_val == "bar":
@@ -1436,13 +1521,14 @@ def dashboard_page():
                                     
                                     # Update layout
                                     fig.update_layout(
-                                        title=title_input.value,
+                                        title=f"{title_input.value} ({len(plot_df)} data points)",
                                         width=int(width_input.value) if width_input.value.isdigit() else 1000,
                                         height=int(height_input.value) if height_input.value.isdigit() else 600,
                                         showlegend=show_legend.value,
-                                        xaxis=dict(showgrid=show_grid.value),
-                                        yaxis=dict(showgrid=show_grid.value),
-                                        template="plotly_dark"
+                                        xaxis=dict(showgrid=show_grid.value, title=x_col_val),
+                                        yaxis=dict(showgrid=show_grid.value, title=", ".join(y_cols_val) if len(y_cols_val) <= 2 else "Values"),
+                                        template="plotly_dark",
+                                        hovermode='x unified' if len(plot_df) > 10 else 'closest'
                                     )
                                     
                                     # Display plot

@@ -30,7 +30,7 @@ def load_timeseries_data() -> Tuple[Optional[pd.DataFrame], List[Dict[str, Any]]
             return None, []
         
         # Load all records from storage
-        keys = app.storage.list_keys("data/")[:500]  # Limit to 500 for performance
+        keys = app.storage.list_keys("data/")[:10000]  # Increased limit for better visualization
         records = []
         
         for key in keys:
@@ -316,7 +316,7 @@ def create_matplotlib_plot(df: pd.DataFrame, series_id: Optional[str] = None, me
     
     # Get unique series
     if 'series_id' in plot_df.columns:
-        unique_series = plot_df['series_id'].unique()[:10]  # Limit to 10
+        unique_series = plot_df['series_id'].unique()  # Show all series
     else:
         unique_series = ['default']
         plot_df['series_id'] = 'default'
@@ -582,7 +582,7 @@ def create_plot(df: pd.DataFrame, series_id: Optional[str] = None, metric: Optio
                 ))
     else:
         # Plot all metrics for all series (or default to 'close' for financial)
-        for sid in unique_series[:10]:  # Limit to 10 series for performance
+        for sid in unique_series:  # Show all series
             series_data = plot_df[plot_df['series_id'] == sid].copy()
             
             # Try to find a default metric
