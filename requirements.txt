@@ -10,8 +10,15 @@ pyarrow>=12.0.0
 plotly>=5.17.0
 matplotlib>=3.7.0
 
+# Optional Visualization Libraries
+altair>=5.0.0          # Declarative statistical visualization
+highcharts-core>=1.10.0     # Professional JavaScript charts
+pyecharts>=2.0.0      # Apache ECharts via PyECharts
+
 # File Format Support
 duckdb>=0.9.0
+openpyxl>=3.1.0          # Excel XLSX export support
+xlwt>=1.3.0              # Excel XLS export support (legacy format)
 
 # Additional Dependencies
 numpy>=1.24.0

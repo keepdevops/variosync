@@ -21,7 +21,7 @@ logger = get_logger()
 
 def create_navbar():
     """Create navigation bar with status indicators."""
-    with ui.header().classes("bg-blue-800 text-white p-4 shadow-lg"):
+    with ui.header(fixed=True).classes("bg-blue-800 text-white p-4 shadow-lg"):
         with ui.row().classes("w-full items-center justify-between"):
             # Left: Logo/Brand and Functional buttons
             with ui.row().classes("gap-4 items-center"):
@@ -84,7 +84,7 @@ def create_navbar():
             
             # Center: Status indicators
             with ui.row().classes("gap-4 items-center flex-1 justify-center"):
-                ui.badge("Online 10 formats", color="info")
+                ui.badge("33 file formats", color="info")
                 with ui.row().classes("items-center gap-2"):
                     ui.icon("circle", color="green", size="sm")
                     ui.label("running")
