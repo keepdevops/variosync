@@ -48,22 +48,20 @@ except ImportError:
 STATIC_DIR = Path(__file__).parent / "static"
 STATIC_DIR.mkdir(exist_ok=True)
 
+# Always serve static files
+from nicegui import app
+app.add_static_files("/static", str(STATIC_DIR))
+
 # Check if custom favicon file exists
 FAVICON_PATH = STATIC_DIR / "favicon.ico"
 FAVICON_SVG_PATH = STATIC_DIR / "favicon.svg"
 
 if FAVICON_PATH.exists():
-    # Serve favicon from static directory
-    from nicegui import app
-    app.add_static_files("/static", str(STATIC_DIR))
     ui.add_head_html(f'''
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="shortcut icon" type="image/x-icon" href="/static/favicon.ico">
     ''', shared=True)
 elif FAVICON_SVG_PATH.exists():
-    # Serve SVG favicon from static directory
-    from nicegui import app
-    app.add_static_files("/static", str(STATIC_DIR))
     ui.add_head_html(f'''
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <link rel="shortcut icon" type="image/svg+xml" href="/static/favicon.svg">
@@ -121,11 +119,75 @@ from nicegui_app.visualization import (
     create_financial_plot,
     create_plot,
 )
+
+# Import additional visualization libraries
+# Import availability flags and wrapper functions
+try:
+    from nicegui_app import (
+        ALTAIR_AVAILABLE,
+        HIGHCHARTS_AVAILABLE,
+        ECHARTS_AVAILABLE,
+    )
+    # Try to import wrapper functions - they may not exist if libraries aren't available
+    try:
+        from nicegui_app import create_altair_plot_wrapper, altair_chart_to_html
+    except (ImportError, AttributeError):
+        create_altair_plot_wrapper = None
+        altair_chart_to_html = None
+    
+    try:
+        from nicegui_app import create_highcharts_plot_wrapper, highcharts_config_to_html
+    except (ImportError, AttributeError):
+        create_highcharts_plot_wrapper = None
+        highcharts_config_to_html = None
+    
+    try:
+        from nicegui_app import create_echarts_plot_wrapper, echarts_config_to_html
+    except (ImportError, AttributeError):
+        create_echarts_plot_wrapper = None
+        echarts_config_to_html = None
+except ImportError:
+    ALTAIR_AVAILABLE = False
+    HIGHCHARTS_AVAILABLE = False
+    ECHARTS_AVAILABLE = False
+    create_altair_plot_wrapper = None
+    altair_chart_to_html = None
+    create_highcharts_plot_wrapper = None
+    highcharts_config_to_html = None
+    create_echarts_plot_wrapper = None
+    echarts_config_to_html = None
 # Import state management
 from nicegui_app.state import get_state
 
-@ui.page("/")
-def dashboard_page():
+# Helper function to render HTML with scripts
+def render_html_with_scripts(html_content: str, container_id: str = None):
+    """Render HTML content that may contain script tags.
+    Separates scripts and uses ui.add_body_html() for scripts, ui.html() for content.
+    """
+    import re
+    
+    # Extract script tags
+    script_pattern = r'<script[^>]*>.*?</script>'
+    scripts = re.findall(script_pattern, html_content, re.DOTALL | re.IGNORECASE)
+    
+    # Remove script tags from HTML content
+    html_without_scripts = re.sub(script_pattern, '', html_content, flags=re.DOTALL | re.IGNORECASE).strip()
+    
+    # If no scripts found, just return the HTML container
+    if not scripts:
+        return ui.html(html_without_scripts, sanitize=False)
+    
+    # Create container for HTML (without scripts)
+    container = ui.html(html_without_scripts, sanitize=False).classes("w-full").style("height: 600px;")
+    
+    # Add scripts to body using ui.add_body_html()
+    for script in scripts:
+        ui.add_body_html(script)
+    
+    return container
+
+@ui.page("/", title="VARIOSYNC Dashboard")
+def dashboard_page(client):
     """Main dashboard page."""
     create_navbar()
     
@@ -133,6 +195,15 @@ def dashboard_page():
     state = get_state()
     
     ui.page_title("VARIOSYNC Dashboard")
+    
+    # Add cache-busting meta tag for Safari
+    ui.add_head_html('<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">')
+    ui.add_head_html('<meta http-equiv="Pragma" content="no-cache">')
+    ui.add_head_html('<meta http-equiv="Expires" content="0">')
+    
+    # Remove default padding and add padding-top to account for fixed header
+    client.content.classes(remove='q-pa-md')
+    client.content.style('padding-top: 80px')  # Header height + some spacing
     
     with ui.column().classes("w-full p-6 gap-6"):
         # Page header
@@ -146,12 +217,57 @@ def dashboard_page():
             with ui.row().classes("w-full gap-4 items-center"):
                 refresh_button = ui.button("🔄 Refresh Data", icon="refresh", color="primary")
                 
-                # Chart library selector
+                # Chart library selector - build options dynamically
+                # Re-import availability flags to ensure they're current and in scope
+                try:
+                    from nicegui_app import ALTAIR_AVAILABLE as ALT_AVAIL, HIGHCHARTS_AVAILABLE as HC_AVAIL, ECHARTS_AVAILABLE as EC_AVAIL
+                except ImportError:
+                    ALT_AVAIL = False
+                    HC_AVAIL = False
+                    EC_AVAIL = False
+                
+                # Build options list
+                chart_library_options = ["plotly"]
+                if MATPLOTLIB_AVAILABLE:
+                    chart_library_options.append("matplotlib")
+                if ALT_AVAIL:
+                    chart_library_options.append("altair")
+                if HC_AVAIL:
+                    chart_library_options.append("highcharts")
+                if EC_AVAIL:
+                    chart_library_options.append("echarts")
+                
+                # Debug logging - force output to stdout
+                logger.info(f"Chart library options: {chart_library_options}")
+                logger.info(f"Availability flags: Altair={ALT_AVAIL}, Highcharts={HC_AVAIL}, ECharts={EC_AVAIL}")
+                print(f"[DEBUG] Chart library options: {chart_library_options}", flush=True)
+                print(f"[DEBUG] Availability flags: Altair={ALT_AVAIL}, Highcharts={HC_AVAIL}, ECharts={EC_AVAIL}", flush=True)
+                print(f"[DEBUG] Number of options: {len(chart_library_options)}", flush=True)
+                
+                # Create select with explicit options list and unique ID for reliable access
                 chart_library_select = ui.select(
-                    options=["plotly", "matplotlib"] if MATPLOTLIB_AVAILABLE else ["plotly"],
+                    options=chart_library_options,
                     label="Chart Library",
                     value="plotly"
-                ).classes("w-40")
+                ).classes("w-40").props('id="chart-library-select"')
+                
+                # Verify what was set
+                print(f"[DEBUG] Select element created with options: {chart_library_options}", flush=True)
+                
+                # Force update options after a short delay to ensure DOM is ready
+                # This works around browser caching and rendering timing issues
+                def update_select_options():
+                    try:
+                        chart_library_select.options = chart_library_options
+                        chart_library_select.update()
+                        print(f"[DEBUG] Forced update of select options: {chart_library_options}", flush=True)
+                    except Exception as e:
+                        logger.warning(f"Error updating select options: {e}")
+                
+                # Update immediately and after DOM is ready
+                # The ui.timer() calls handle the updates reliably without needing JavaScript fallback
+                ui.timer(0.2, update_select_options, once=True)
+                ui.timer(1.0, update_select_options, once=True)
                 
                 # Series selector
                 series_select = ui.select(
@@ -268,6 +384,66 @@ def dashboard_page():
                             state.set_state("dashboard.plot_image", plot_image)
                         else:
                             ui.notify("Failed to create Matplotlib chart", type="warning")
+                    elif chart_library == "altair" and ALTAIR_AVAILABLE and create_altair_plot_wrapper:
+                        # Use Altair
+                        try:
+                            logger.debug(f"Creating Altair chart: series={series_select.value}, metric={metric_select.value}, chart_type={chart_type}")
+                            altair_chart = create_altair_plot_wrapper(df, series_select.value, metric_select.value, chart_type)
+                            if altair_chart:
+                                html_content = altair_chart_to_html(altair_chart)
+                                try:
+                                    plot_container.delete()
+                                except:
+                                    pass
+                                plot_container = render_html_with_scripts(html_content)
+                                state.set_component("dashboard.plot_container", plot_container)
+                                logger.info(f"Successfully created Altair chart")
+                            else:
+                                logger.warning("Failed to create Altair chart: chart is None")
+                                ui.notify("Failed to create Altair chart", type="warning")
+                        except Exception as e:
+                            logger.error(f"Error creating Altair chart: {e}", exc_info=True)
+                            ui.notify(f"Altair chart error: {str(e)}", type="negative")
+                    elif chart_library == "highcharts" and HIGHCHARTS_AVAILABLE and create_highcharts_plot_wrapper:
+                        # Use Highcharts
+                        try:
+                            logger.debug(f"Creating Highcharts chart: series={series_select.value}, metric={metric_select.value}, chart_type={chart_type}")
+                            hc_config = create_highcharts_plot_wrapper(df, series_select.value, metric_select.value, chart_type)
+                            if hc_config:
+                                html_content = highcharts_config_to_html(hc_config, container_id="highcharts-dashboard")
+                                try:
+                                    plot_container.delete()
+                                except:
+                                    pass
+                                plot_container = render_html_with_scripts(html_content)
+                                state.set_component("dashboard.plot_container", plot_container)
+                                logger.info(f"Successfully created Highcharts chart")
+                            else:
+                                logger.warning("Failed to create Highcharts chart: config is None")
+                                ui.notify("Failed to create Highcharts chart", type="warning")
+                        except Exception as e:
+                            logger.error(f"Error creating Highcharts chart: {e}", exc_info=True)
+                            ui.notify(f"Highcharts chart error: {str(e)}", type="negative")
+                    elif chart_library == "echarts" and ECHARTS_AVAILABLE and create_echarts_plot_wrapper:
+                        # Use ECharts
+                        try:
+                            logger.debug(f"Creating ECharts chart: series={series_select.value}, metric={metric_select.value}, chart_type={chart_type}")
+                            echarts_config = create_echarts_plot_wrapper(df, series_select.value, metric_select.value, chart_type)
+                            if echarts_config:
+                                html_content = echarts_config_to_html(echarts_config, container_id="echarts-dashboard")
+                                try:
+                                    plot_container.delete()
+                                except:
+                                    pass
+                                plot_container = render_html_with_scripts(html_content)
+                                state.set_component("dashboard.plot_container", plot_container)
+                                logger.info(f"Successfully created ECharts chart")
+                            else:
+                                logger.warning("Failed to create ECharts chart: config is None")
+                                ui.notify("Failed to create ECharts chart", type="warning")
+                        except Exception as e:
+                            logger.error(f"Error creating ECharts chart: {e}", exc_info=True)
+                            ui.notify(f"ECharts chart error: {str(e)}", type="negative")
                     else:
                         # Use Plotly (default)
                         new_fig = create_plot(df, series_select.value, metric_select.value, chart_type)
@@ -1678,7 +1854,7 @@ def dashboard_page():
                             keys = app.storage.list_keys("data/")[:100]
                             records = []
                             for key in keys:
-                                data_bytes = app_instance.storage.load(key)
+                                data_bytes = app.storage.load(key)
                                 if data_bytes:
                                     try:
                                         record = json.loads(data_bytes.decode('utf-8'))

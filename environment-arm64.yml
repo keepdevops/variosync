@@ -19,7 +19,7 @@ dependencies:
     - supabase>=2.0.0
     # Optional visualization libraries (uncomment to install)
     # - altair>=5.0.0
-    # - highcharts>=2.0.0
+    # - highcharts-core>=1.10.0
     # - pyecharts>=2.0.0
 
 # Usage:

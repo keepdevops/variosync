@@ -13,8 +13,12 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      # Redis URL - automatically provided by Render Key Value service
       - key: REDIS_URL
-        sync: false
+        fromService:
+          name: variosync-redis
+          type: keyvalue
+          property: connectionString
       - key: AWS_ACCESS_KEY_ID
         sync: false
       - key: AWS_SECRET_ACCESS_KEY
@@ -38,8 +42,10 @@ services:
     autoDeploy: true
     region: oregon
 
-databases:
-  - name: variosync-redis
+  # Render Key Value (Redis-compatible) instance
+  # Note: Key Value instances are defined in services, not databases
+  - type: keyvalue
+    name: variosync-redis
     plan: free
-    type: redis
     maxmemoryPolicy: allkeys-lru
+    ipAllowList: []  # Only allow internal connections (required field)

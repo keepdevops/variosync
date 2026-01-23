@@ -25,9 +25,10 @@ numpy>=1.24.0
 
 # Redis (for caching and rate limiting)
 redis>=5.0.0
+upstash-redis>=0.1.0  # Upstash Redis REST API client
 
 # Modal (optional, for serverless functions)
-# modal>=0.50.0  # Uncomment if using Modal functions
+modal>=0.50.0  # Uncomment if using Modal functions
 
 # ML Dependencies (optional, for Modal functions)
 # prophet>=1.1.5

@@ -1,0 +1,111 @@
+# ============================================================================
+# Render Deployment Configuration (Docker Hub)
+# ============================================================================
+# This configuration deploys VARIOSYNC from Docker Hub to Render
+# 
+# Setup:
+# 1. Build and push image to Docker Hub: 
+#    docker build -f Dockerfile.production -t yourusername/variosync:1.0.0 .
+#    docker push yourusername/variosync:1.0.0
+# 2. In Render dashboard: New → Web Service → Existing Image
+# 3. Use image: docker.io/yourusername/variosync:1.0.0
+# 4. Set environment variables (see below)
+# ============================================================================
+
+services:
+  - type: web
+    name: variosync-web
+    # Docker Hub image (replace with your image)
+    dockerImage: docker.io/yourusername/variosync:1.0.0
+    # Or use official NiceGUI + mount code:
+    # dockerImage: zauberzeug/nicegui:latest
+    # disk:
+    #   name: app-code
+    #   mountPath: /app
+    #   sizeGB: 10
+    
+    # Port configuration (NiceGUI default is 8080)
+    port: 8080
+    
+    # Health check
+    healthCheckPath: /health
+    
+    # Plan
+    plan: starter  # Change to 'standard' or 'pro' for production
+    
+    # Auto-deploy on Docker Hub push (requires webhook setup)
+    autoDeploy: false  # Set to true after configuring webhook
+    
+    # Region
+    region: oregon  # or: frankfurt, singapore, etc.
+    
+    # Environment variables (set these in Render dashboard)
+    envVars:
+      # Supabase Configuration
+      - key: SUPABASE_URL
+        sync: false  # Set manually in dashboard
+      - key: SUPABASE_ANON_KEY
+        sync: false  # Public key, safe for frontend
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false  # Private key, server-only!
+      
+      # Upstash Redis Configuration
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      # Redis URL - automatically provided by Render Key Value service
+      - key: REDIS_URL
+        fromService:
+          name: variosync-redis
+          type: keyvalue
+          property: connectionString
+      
+      # Wasabi (S3-compatible) Configuration
+      - key: WASABI_ACCESS_KEY_ID
+        sync: false
+      - key: WASABI_SECRET_ACCESS_KEY
+        sync: false
+      - key: WASABI_ENDPOINT
+        sync: false  # e.g., https://s3.us-east-1.wasabisys.com
+      - key: WASABI_BUCKET
+        sync: false
+      # Alternative: AWS S3 (if using AWS instead)
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_ENDPOINT_URL
+        sync: false
+      - key: AWS_BUCKET_NAME
+        sync: false
+      
+      # Modal Configuration (optional)
+      - key: MODAL_TOKEN_ID
+        sync: false
+      - key: MODAL_TOKEN_SECRET
+        sync: false
+      
+      # NiceGUI Configuration
+      - key: PORT
+        value: "8080"
+      - key: HOST
+        value: "0.0.0.0"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: NICEGUI_RELOAD
+        value: "false"  # Production mode
+      - key: STORAGE_SECRET
+        sync: false  # Random secret for encrypted browser storage
+      
+      # Application Configuration
+      - key: ENVIRONMENT
+        value: "production"
+
+  # Render Key Value (Redis-compatible) instance
+  # Note: Key Value instances are defined in services, not databases
+  - type: keyvalue
+    name: variosync-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+    ipAllowList: []  # Only allow internal connections (required field)

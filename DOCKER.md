@@ -81,10 +81,20 @@ docker ps  # Check health status
 ## Access the Application
 
 Once running:
-- **API**: http://localhost:8000
-- **API Docs**: http://localhost:8000/docs
-- **Dashboard**: http://localhost:8000/dashboard
-- **Health**: http://localhost:8000/health
+- **Dashboard**: http://localhost:8000
+- **Health Check**: http://localhost:8000/health
+
+## Visualization Libraries
+
+The Docker image includes support for multiple visualization libraries:
+
+- **Plotly** (default) - Interactive web-based charts
+- **Matplotlib** - Static image generation
+- **Altair** - Declarative statistical visualization
+- **Highcharts** - Professional JavaScript charts
+- **ECharts** - Apache ECharts via PyECharts
+
+All visualization libraries are automatically installed during the Docker build. The NiceGUI dashboard allows you to select which library to use for rendering charts.
 
 ## Troubleshooting
 
@@ -103,4 +113,27 @@ docker exec -it variosync-app bash
 ```bash
 docker-compose build --no-cache
 docker-compose up -d
+```
+
+### Verify Visualization Libraries
+
+To check if visualization libraries are installed in the container:
+
+```bash
+docker exec variosync-app python3 -c "
+import sys
+libraries = {
+    'Plotly': 'plotly',
+    'Matplotlib': 'matplotlib',
+    'Altair': 'altair',
+    'Highcharts': 'highcharts',
+    'ECharts': 'pyecharts'
+}
+for name, module in libraries.items():
+    try:
+        __import__(module)
+        print(f'✅ {name}: Available')
+    except ImportError:
+        print(f'❌ {name}: Not installed')
+"
 ```

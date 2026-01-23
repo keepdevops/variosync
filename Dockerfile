@@ -19,10 +19,19 @@ RUN pip install --no-cache-dir \
     nicegui>=1.4.0 \
     pandas \
     pyarrow \
-    plotly
+    plotly \
+    matplotlib
+
+# Install optional visualization libraries (Altair, Highcharts, ECharts)
+# These are optional but recommended for full visualization support
+# Note: These libraries are pure Python or JavaScript wrappers, so they work well in containers
+RUN pip install --no-cache-dir altair>=5.0.0 highcharts-core>=1.10.0 pyecharts>=2.0.0
 
 # Copy application code
 COPY . .
+
+# Ensure static directory exists with assets
+COPY static/ /app/static/
 
 # Create data directory
 RUN mkdir -p data

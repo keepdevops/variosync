@@ -26,21 +26,22 @@ except ImportError:
     MATPLOTLIB_AVAILABLE = False
     logger.warning("Matplotlib not available. Install with: pip install matplotlib")
 
-# Favicon configuration
+# Static files and favicon configuration
 STATIC_DIR = Path(__file__).parent.parent / "static"
 STATIC_DIR.mkdir(exist_ok=True)
+
+# Always register static files directory
+app.add_static_files("/static", str(STATIC_DIR))
 
 FAVICON_PATH = STATIC_DIR / "favicon.ico"
 FAVICON_SVG_PATH = STATIC_DIR / "favicon.svg"
 
 if FAVICON_PATH.exists():
-    app.add_static_files("/static", str(STATIC_DIR))
     ui.add_head_html(f'''
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="shortcut icon" type="image/x-icon" href="/static/favicon.ico">
     ''', shared=True)
 elif FAVICON_SVG_PATH.exists():
-    app.add_static_files("/static", str(STATIC_DIR))
     ui.add_head_html(f'''
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
     <link rel="shortcut icon" type="image/svg+xml" href="/static/favicon.svg">
@@ -88,6 +89,41 @@ from .visualization import (
     create_plot,
 )
 
+# Import additional visualization libraries
+try:
+    from .altair_viz import (
+        create_altair_financial_plot,
+        create_altair_plot,
+        create_altair_plot_wrapper,
+        altair_chart_to_dict,
+        altair_chart_to_html,
+        ALTAIR_AVAILABLE,
+    )
+except ImportError:
+    ALTAIR_AVAILABLE = False
+
+try:
+    from .highcharts_viz import (
+        create_highcharts_financial_plot,
+        create_highcharts_plot,
+        create_highcharts_plot_wrapper,
+        highcharts_config_to_html,
+        HIGHCHARTS_AVAILABLE,
+    )
+except ImportError:
+    HIGHCHARTS_AVAILABLE = False
+
+try:
+    from .echarts_viz import (
+        create_echarts_financial_plot,
+        create_echarts_plot,
+        create_echarts_plot_wrapper,
+        echarts_config_to_html,
+        ECHARTS_AVAILABLE,
+    )
+except ImportError:
+    ECHARTS_AVAILABLE = False
+
 __all__ = [
     'create_navbar',
     # 'dashboard_page',  # TODO: Uncomment when dashboard.py is created
@@ -96,6 +132,9 @@ __all__ = [
     'get_state',
     'UIState',
     'MATPLOTLIB_AVAILABLE',
+    'ALTAIR_AVAILABLE',
+    'HIGHCHARTS_AVAILABLE',
+    'ECHARTS_AVAILABLE',
     'load_timeseries_data',
     'get_available_series',
     'is_financial_data',
@@ -106,4 +145,20 @@ __all__ = [
     'matplotlib_figure_to_base64',
     'create_financial_plot',
     'create_plot',
+    # Altair functions
+    'create_altair_financial_plot',
+    'create_altair_plot',
+    'create_altair_plot_wrapper',
+    'altair_chart_to_dict',
+    'altair_chart_to_html',
+    # Highcharts functions
+    'create_highcharts_financial_plot',
+    'create_highcharts_plot',
+    'create_highcharts_plot_wrapper',
+    'highcharts_config_to_html',
+    # ECharts functions
+    'create_echarts_financial_plot',
+    'create_echarts_plot',
+    'create_echarts_plot_wrapper',
+    'echarts_config_to_html',
 ]

@@ -25,15 +25,13 @@ def create_navbar():
         with ui.row().classes("w-full items-center justify-between"):
             # Left: Logo/Brand and Functional buttons
             with ui.row().classes("gap-4 items-center"):
-                # Brand/Logo icon - click to refresh dashboard
-                logo_icon = ui.icon("sync_alt", size="lg", color="white").classes("cursor-pointer hover:scale-110 transition-transform")
+                # Brand/Logo image - click to refresh dashboard
+                logo_icon = ui.image("/static/VS.png").classes("w-8 h-8 cursor-pointer hover:scale-110 transition-transform")
                 logo_label = ui.label("VARIOSYNC").classes("text-xl font-bold cursor-pointer hover:text-blue-200")
                 
                 def refresh_dashboard():
                     """Refresh the entire dashboard."""
                     ui.notify("Refreshing dashboard...", type="info")
-                    # Add animation
-                    logo_icon.classes("animate-spin")
                     # Trigger page reload via JavaScript
                     ui.run_javascript('window.location.reload()')
                 

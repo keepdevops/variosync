@@ -1,0 +1,79 @@
+# ============================================================================
+# VARIOSYNC Production Dockerfile (Multi-stage build with bytecode compilation)
+# Alternative version: Compiles bytecode per platform in multi-platform builds
+# ============================================================================
+
+# Stage 1: Builder - Install dependencies
+FROM python:3.12-slim AS builder
+
+WORKDIR /app
+
+# Install system dependencies for building Python packages
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Stage 2: Bytecode Compiler - Compile Python code for target platform
+FROM python:3.12-slim AS bytecode-compiler
+
+WORKDIR /app
+
+# Copy application code
+COPY . .
+
+# Compile Python bytecode for the target platform
+# This stage runs for each platform in multi-platform builds
+# Bytecode is platform-specific, so each platform gets its own compiled version
+RUN python3 -m compileall -f -q . || true
+
+# Optional: Remove source files (keep only bytecode)
+# Uncomment to ship bytecode-only (smaller image, but harder to debug)
+# RUN find . -type f -name "*.py" \
+#     -not -path "./venv/*" \
+#     -not -path "./.venv/*" \
+#     -not -path "./__pycache__/*" \
+#     -delete
+
+# Stage 3: Final - Based on official NiceGUI image
+FROM zauberzeug/nicegui:latest
+
+WORKDIR /app
+
+# Copy Python packages from builder
+COPY --from=builder /root/.local /root/.local
+
+# Ensure local packages are in PATH
+ENV PATH=/root/.local/bin:$PATH
+
+# Copy compiled bytecode from bytecode-compiler stage
+# This ensures bytecode matches the target platform
+COPY --from=bytecode-compiler /app /app
+
+# Ensure static directory exists
+RUN mkdir -p static data
+
+# Set environment variables
+ENV PORT=8080
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+
+# Optimize Python for production
+# PYTHONDONTWRITEBYTECODE: Use pre-compiled bytecode, don't write new .pyc files
+# PYTHONOPTIMIZE: Enable optimizations (removes assert statements, docstrings in some modes)
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONOPTIMIZE=1
+
+# Expose port (NiceGUI default is 8080)
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD python3 -c "import requests; requests.get('http://localhost:8080/health', timeout=5)" || exit 1
+
+# Run the NiceGUI application
+CMD ["python3", "run_nicegui.py"]
