@@ -114,8 +114,22 @@ CREATE POLICY "Users can update own data"
 2. Note the endpoint URL: `https://s3.us-east-1.wasabisys.com`
 3. Create access keys in Access Keys section
 
-#### 2.3 Configure Bucket Policies
-Set up bucket policy for your application:
+#### 2.3 Configure IAM Permissions
+
+**Important:** Your backend service needs IAM permissions to generate presigned URLs for users. Users don't need their own credentials - they upload via presigned URLs.
+
+**For detailed IAM setup instructions, see:** [`WASABI_S3_R2_PERMISSIONS.md`](./WASABI_S3_R2_PERMISSIONS.md)
+
+**Quick Setup:**
+1. Create access keys in Wasabi **Access Keys** section
+2. Your backend service needs these permissions:
+   - `s3:PutObject` - Generate presigned upload URLs
+   - `s3:GetObject` - Generate presigned download URLs  
+   - `s3:DeleteObject` - Delete files
+   - `s3:ListBucket` - List files
+
+**Bucket Policy (Optional):**
+Bucket policies are optional for Wasabi since IAM users provide permissions. If you want additional restrictions:
 
 ```json
 {
@@ -124,7 +138,7 @@ Set up bucket policy for your application:
     {
       "Effect": "Allow",
       "Principal": {
-        "AWS": "arn:aws:iam::YOUR_ACCOUNT:user/YOUR_USER"
+        "AWS": "*"
       },
       "Action": [
         "s3:GetObject",
@@ -135,7 +149,12 @@ Set up bucket policy for your application:
       "Resource": [
         "arn:aws:s3:::variosync-data",
         "arn:aws:s3:::variosync-data/*"
-      ]
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:PrincipalAccessKeyId": "YOUR_ACCESS_KEY_ID"
+        }
+      }
     }
   ]
 }
