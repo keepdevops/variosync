@@ -1,7 +1,6 @@
 """
 VARIOSYNC Main Application Entry Point
 Orchestrates the VARIOSYNC time-series data processing system.
-Supabase import psycopg2
 """
 import psycopg2
 from dotenv import load_dotenv
