@@ -21,8 +21,8 @@ logger = get_logger()
 
 def create_navbar():
     """Create navigation bar with status indicators."""
-    with ui.header(fixed=True).classes("bg-blue-800 text-white p-4 shadow-lg"):
-        with ui.row().classes("w-full items-center justify-between"):
+    with ui.header(fixed=True).classes("bg-blue-800 text-white p-4 shadow-lg").props('data-navbar="true"'):
+        with ui.row().classes("w-full items-center justify-between").props('data-section="navbar-left"'):
             # Left: Logo/Brand and Functional buttons
             with ui.row().classes("gap-4 items-center"):
                 # Brand/Logo image - click to refresh dashboard
@@ -81,7 +81,7 @@ def create_navbar():
                     ui.button(icon="settings", on_click=show_settings_dialog).tooltip("Settings")
             
             # Center: Status indicators
-            with ui.row().classes("gap-4 items-center flex-1 justify-center"):
+            with ui.row().classes("gap-4 items-center flex-1 justify-center").props('data-section="navbar-center"'):
                 ui.badge("33 file formats", color="info")
                 with ui.row().classes("items-center gap-2"):
                     ui.icon("circle", color="green", size="sm")
@@ -90,7 +90,7 @@ def create_navbar():
                 ui.icon("description")
             
             # Right: Theme and usage
-            with ui.row().classes("gap-4 items-center"):
+            with ui.row().classes("gap-4 items-center").props('data-section="navbar-right"'):
                 with ui.row().classes("items-center gap-2"):
                     ui.icon("palette")
                     ui.label("Dark")

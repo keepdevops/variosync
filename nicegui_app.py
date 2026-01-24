@@ -201,160 +201,703 @@ def dashboard_page(client):
     ui.add_head_html('<meta http-equiv="Pragma" content="no-cache">')
     ui.add_head_html('<meta http-equiv="Expires" content="0">')
     
-    # Remove default padding and add padding-top to account for fixed header
+    # Remove default padding and set up for panel system
     client.content.classes(remove='q-pa-md')
-    client.content.style('padding-top: 80px')
+    client.content.style('padding-top: 80px; overflow: hidden;')
 
-    # Add CSS for resizable split pane layout
+    # Add CSS for FlexLayout-style draggable/resizable/floatable panels using flexbox
     ui.add_head_html('''
     <style>
-        /* Convert the main column into a resizable split layout */
-        .split-layout {
-            display: grid !important;
-            grid-template-rows: 1fr 8px 1fr;
-            height: calc(100vh - 100px) !important;
-            gap: 0 !important;
-            overflow: hidden !important;
-            padding: 8px !important;
-        }
-        .split-layout > .q-card[data-section="plot"] {
-            overflow: hidden;
-            min-height: 0;
+        /* Global flexbox for all dashboard components */
+        .q-page, .q-page-container, .q-page-sticky {
             display: flex;
             flex-direction: column;
         }
-        /* Plotly container styling */
-        .q-card[data-section="plot"] .js-plotly-plot,
-        .q-card[data-section="plot"] .plotly,
-        .q-card[data-section="plot"] .plot-container {
-            width: 100% !important;
-            min-height: 250px !important;
+        
+        /* Make all rows use flexbox */
+        .q-row, .row, [class*="row"] {
+            display: flex !important;
+            flex-direction: row;
+            flex-wrap: wrap;
+            align-items: center;
         }
-        .q-card[data-section="plot"] nicegui-plotly,
-        .q-card[data-section="plot"] .nicegui-plotly {
-            display: block;
-            width: 100%;
-            min-height: 300px;
-            height: auto;
+        
+        /* Make all columns use flexbox */
+        .q-column, .column, [class*="column"] {
+            display: flex !important;
+            flex-direction: column;
         }
-        .split-layout > .resize-handle {
-            background: linear-gradient(to right, transparent 35%, #3b82f6 35%, #3b82f6 65%, transparent 65%);
-            cursor: ns-resize;
+        
+        /* Dashboard cards use flexbox */
+        .q-card {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Main container - flexbox layout for panels */
+        .panels-grid {
+            display: flex;
+            flex-wrap: wrap;
+            flex-direction: row;
+            gap: 12px;
+            padding: 12px;
+            align-content: flex-start;
+            align-items: flex-start;
+            height: calc(100vh - 90px);
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        /* Panel wrapper - flexbox card */
+        .flexi-panel {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            background: #1e1e2e;
+            border: 2px solid #3b82f6;
+            border-radius: 8px;
+            overflow: hidden;
+            min-width: 300px;
+            min-height: 250px;
+            flex: 1 1 300px;
+            max-width: calc(50% - 6px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            transition: box-shadow 0.2s ease, transform 0.2s ease;
+        }
+
+        .flexi-panel:hover {
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+
+        /* When floating, remove flex constraints */
+        .flexi-panel.floating {
+            flex: none !important;
+            max-width: none !important;
+            position: fixed !important;
+        }
+
+        /* Panel header - draggable handle */
+        .flexi-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: linear-gradient(135deg, #3b82f6, #1e40af);
+            cursor: move;
+            user-select: none;
+            flex-shrink: 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .flexi-panel-title {
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            flex: 1;
+        }
+        .flexi-panel-controls {
+            display: flex;
+            gap: 4px;
+        }
+        .flexi-panel-btn {
+            width: 24px;
+            height: 24px;
+            border: none;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            user-select: none;
+            transition: background 0.2s ease;
         }
-        .split-layout > .resize-handle:hover {
-            background: linear-gradient(to right, transparent 25%, #1e40af 25%, #1e40af 75%, transparent 75%);
+        .flexi-panel-btn:hover { 
+            background: rgba(255,255,255,0.35); 
         }
-        .split-layout > .resize-handle::after {
-            content: "";
-            width: 50px;
-            height: 4px;
-            background: rgba(255,255,255,0.4);
-            border-radius: 2px;
-        }
-        .split-layout > .bottom-wrapper {
+
+        /* Panel body - flex container */
+        .flexi-panel-body {
+            flex: 1;
             overflow: auto;
             min-height: 0;
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+        }
+        .flexi-panel-body > .q-card {
+            height: 100%;
+            border: none;
+            border-radius: 0;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Ensure all content inside panels uses flexbox */
+        .flexi-panel-body .q-row,
+        .flexi-panel-body .row,
+        .flexi-panel-body .q-column,
+        .flexi-panel-body .column {
+            display: flex !important;
+        }
+        
+        /* Flexbox for card content */
+        .flexi-panel-body .q-card > * {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+        
+        /* Controls row - flexbox */
+        .flexi-panel-body .q-row.gap-4,
+        .flexi-panel-body .row.gap-4 {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        /* Form elements in flexbox */
+        .flexi-panel-body .q-input,
+        .flexi-panel-body .q-select,
+        .flexi-panel-body .q-btn {
+            flex: 0 0 auto;
+        }
+        
+        /* Select elements with flex-1 */
+        .flexi-panel-body .flex-1 {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+        
+        /* Full width elements */
+        .flexi-panel-body .w-full {
+            width: 100%;
+            flex: 1 1 100%;
+        }
+
+        /* Floating panel - detached window */
+        .flexi-panel.floating {
+            position: fixed !important;
+            z-index: 1000;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            overflow: hidden;
+            max-width: 90vw !important;
+            max-height: 90vh !important;
+            flex: none !important;
+            /* Allow manual resizing */
+            resize: both;
+        }
+        
+        /* Make floating panels truly independent */
+        .flexi-panel.floating .flexi-panel-body {
+            overflow: auto;
+        }
+
+        /* Maximized panel */
+        .flexi-panel.maximized {
+            position: fixed !important;
+            top: 80px !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: calc(100vh - 80px) !important;
+            z-index: 999;
+            border-radius: 0;
+            border: none;
+            max-width: 100vw !important;
+            max-height: calc(100vh - 80px) !important;
+        }
+
+        /* Wide panel (spans full width) */
+        .flexi-panel.panel-wide { 
+            flex: 1 1 100%;
+            max-width: 100%;
+        }
+
+        /* Navbar panel - special styling */
+        .flexi-panel.navbar-panel {
+            flex: 0 0 auto;
+            min-width: 400px;
+            max-width: 600px;
+        }
+
+        /* Resize handle */
+        .flexi-resize-handle {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 16px;
+            height: 16px;
+            cursor: nwse-resize;
+            background: linear-gradient(135deg, transparent 50%, #3b82f6 50%);
+            opacity: 0.6;
+            transition: opacity 0.2s ease;
+        }
+        .flexi-panel:hover .flexi-resize-handle {
+            opacity: 1;
+        }
+
+        /* Plotly sizing */
+        .flexi-panel-body .js-plotly-plot,
+        .flexi-panel-body .plotly,
+        .flexi-panel-body .plot-container {
+            width: 100% !important;
+            height: 100% !important;
+        }
+        .flexi-panel-body nicegui-plotly {
+            display: block;
+            width: 100%;
+            min-height: 280px;
+            flex: 1;
+        }
+
+        /* Hide original labels since we have panel headers */
+        .flexi-panel-body > .q-card > .text-xl:first-child { display: none; }
+
+        /* Navbar components as cards */
+        .navbar-card {
+            display: flex;
+            flex-direction: column;
+            padding: 8px;
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 6px;
+            margin: 4px;
+        }
+
+        /* Ensure proper flex behavior */
+        .flexi-panel-body > * {
+            flex-shrink: 0;
+        }
+        .flexi-panel-body > .q-card {
+            flex-shrink: 1;
+        }
+        
+        /* Dashboard-wide flexbox improvements */
+        .q-page > .q-card,
+        .panels-grid > .flexi-panel {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Upload section flexbox */
+        [data-section="upload"] .q-row,
+        [data-section="upload"] .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        
+        /* Plot section flexbox */
+        [data-section="plot"] .q-row,
+        [data-section="plot"] .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        [data-section="plot"] .q-select,
+        [data-section="plot"] .q-btn {
+            flex: 0 0 auto;
+        }
+        
+        /* Storage section flexbox */
+        [data-section="storage"] .q-column,
+        [data-section="storage"] .column {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        /* Navbar flexbox */
+        [data-section^="navbar"] {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        /* Responsive flexbox adjustments */
+        @media (max-width: 768px) {
+            .panels-grid {
+                flex-direction: column;
+            }
+            .flexi-panel {
+                max-width: 100% !important;
+                flex: 1 1 100% !important;
+            }
+            .flexi-panel-body .q-row,
+            .flexi-panel-body .row {
+                flex-direction: column;
+            }
         }
     </style>
     ''')
 
-    # Add JavaScript for dynamic resize handling
+    # Add JavaScript for panel system (using interact.js for drag/resize)
     ui.add_body_html('''
+    <script src="https://cdn.jsdelivr.net/npm/interactjs@1.10.17/dist/interact.min.js"></script>
     <script>
     (function() {
-        let initialized = false;
+        const panelConfig = {
+            plot: { title: '📊 Live Sync Metrics', wide: true },
+            upload: { title: '📤 Upload & Process' },
+            storage: { title: '💾 Storage Browser' },
+            'navbar-left': { title: '🧭 Navbar - Actions', navbar: true },
+            'navbar-center': { title: '🧭 Navbar - Status', navbar: true },
+            'navbar-right': { title: '🧭 Navbar - Info', navbar: true }
+        };
 
-        function initSplitPane() {
-            if (initialized) return;
+        let panelInstances = new Map();
 
-            const container = document.querySelector('.split-layout');
+        function wrapCardsInPanels() {
+            const container = document.querySelector('.panels-grid');
             if (!container) {
-                setTimeout(initSplitPane, 200);
+                setTimeout(wrapCardsInPanels, 200);
                 return;
             }
 
-            // Find the plot card and bottom content
-            const plotCard = container.querySelector('[data-section="plot"]');
-            const uploadCard = container.querySelector('[data-section="upload"]');
-            const storageCard = container.querySelector('[data-section="storage"]');
+            // Wrap dashboard cards
+            const cards = container.querySelectorAll('[data-section]');
+            cards.forEach(card => {
+                if (card.closest('.flexi-panel')) return; // Already wrapped
 
-            if (!plotCard || !uploadCard) {
-                setTimeout(initSplitPane, 200);
+                const section = card.getAttribute('data-section');
+                const config = panelConfig[section] || { title: section };
+
+                wrapCardInPanel(card, config);
+            });
+
+            // Wrap navbar components if not already wrapped
+            wrapNavbarComponents();
+
+            initPanelInteractions();
+        }
+
+        function wrapCardInPanel(card, config) {
+            // Create panel wrapper
+            const panel = document.createElement('div');
+            panel.className = 'flexi-panel' + (config.wide ? ' panel-wide' : '') + (config.navbar ? ' navbar-panel' : '');
+            panel.dataset.panelId = 'panel-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+
+            // Create header
+            const header = document.createElement('div');
+            header.className = 'flexi-panel-header';
+            header.innerHTML = `
+                <span class="flexi-panel-title">${config.title}</span>
+                <div class="flexi-panel-controls">
+                    <button class="flexi-panel-btn" data-action="float" title="Float/Dock">⧉</button>
+                    <button class="flexi-panel-btn" data-action="maximize" title="Maximize">□</button>
+                    <button class="flexi-panel-btn" data-action="close" title="Close">✕</button>
+                </div>
+            `;
+
+            // Create body wrapper
+            const body = document.createElement('div');
+            body.className = 'flexi-panel-body';
+
+            // Create resize handle
+            const resizeHandle = document.createElement('div');
+            resizeHandle.className = 'flexi-resize-handle';
+
+            // Insert panel before card, move card into body
+            card.parentNode.insertBefore(panel, card);
+            body.appendChild(card);
+            panel.appendChild(header);
+            panel.appendChild(body);
+            panel.appendChild(resizeHandle);
+
+            // Store panel instance
+            panelInstances.set(panel.dataset.panelId, {
+                panel: panel,
+                originalParent: card.parentNode,
+                originalNextSibling: card.nextSibling,
+                config: config
+            });
+        }
+
+        function wrapNavbarComponents() {
+            // Check if navbar sections are already wrapped
+            const navbarSections = document.querySelectorAll('[data-section^="navbar"]');
+            if (navbarSections.length === 0) return;
+
+            // Find the panels grid container
+            const container = document.querySelector('.panels-grid');
+            if (!container) return;
+
+            // Wrap each navbar section
+            navbarSections.forEach((section) => {
+                if (section.closest('.flexi-panel')) return; // Already wrapped
+
+                const sectionType = section.getAttribute('data-section');
+                let title = '🧭 Navigation';
+                if (sectionType === 'navbar-left') title = '🧭 Navbar - Actions';
+                else if (sectionType === 'navbar-center') title = '🧭 Navbar - Status';
+                else if (sectionType === 'navbar-right') title = '🧭 Navbar - Info';
+
+                const config = { 
+                    title: title, 
+                    navbar: true 
+                };
+                
+                // Create a card wrapper for the navbar content
+                const card = document.createElement('div');
+                card.className = 'q-card';
+                card.setAttribute('data-section', sectionType);
+                card.style.cssText = 'padding: 12px; background: rgba(59, 130, 246, 0.1); border-radius: 6px; min-height: 60px;';
+                
+                // Clone and move navbar content
+                const clonedContent = section.cloneNode(true);
+                clonedContent.removeAttribute('data-section'); // Remove to avoid recursion
+                card.appendChild(clonedContent);
+                
+                // Insert into panels grid
+                wrapCardInPanel(card, config);
+                container.appendChild(card.closest('.flexi-panel'));
+            });
+        }
+
+        function initPanelInteractions() {
+            if (typeof interact === 'undefined') {
+                setTimeout(initPanelInteractions, 200);
                 return;
             }
 
-            // Create resize handle if it doesn't exist
-            let handle = container.querySelector('.resize-handle');
-            if (!handle) {
-                handle = document.createElement('div');
-                handle.className = 'resize-handle';
-                plotCard.insertAdjacentElement('afterend', handle);
-            }
-
-            // Create bottom wrapper and move cards into it
-            let bottomWrapper = container.querySelector('.bottom-wrapper');
-            if (!bottomWrapper) {
-                bottomWrapper = document.createElement('div');
-                bottomWrapper.className = 'bottom-wrapper';
-                handle.insertAdjacentElement('afterend', bottomWrapper);
-
-                // Move upload and storage cards into bottom wrapper
-                if (uploadCard) bottomWrapper.appendChild(uploadCard);
-                if (storageCard) bottomWrapper.appendChild(storageCard);
-            }
-
-            initialized = true;
-
-            // Resize handling
-            let isDragging = false;
-
-            handle.addEventListener('mousedown', (e) => {
-                isDragging = true;
-                document.body.style.cursor = 'ns-resize';
-                document.body.style.userSelect = 'none';
-                e.preventDefault();
-            });
-
-            document.addEventListener('mousemove', (e) => {
-                if (!isDragging) return;
-
-                const rect = container.getBoundingClientRect();
-                const containerHeight = rect.height - 8;
-                let topHeight = e.clientY - rect.top;
-
-                topHeight = Math.max(150, Math.min(topHeight, containerHeight - 150));
-                const bottomHeight = containerHeight - topHeight;
-
-                container.style.gridTemplateRows = topHeight + 'px 8px ' + bottomHeight + 'px';
-                window.dispatchEvent(new Event('resize'));
-            });
-
-            document.addEventListener('mouseup', () => {
-                if (isDragging) {
-                    isDragging = false;
-                    document.body.style.cursor = '';
-                    document.body.style.userSelect = '';
-                    window.dispatchEvent(new Event('resize'));
+            // Draggable panels (by header)
+            interact('.flexi-panel-header').draggable({
+                listeners: {
+                    start(event) {
+                        const panel = event.target.closest('.flexi-panel');
+                        if (!panel.classList.contains('floating')) {
+                            // Get current position and size
+                            const rect = panel.getBoundingClientRect();
+                            const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+                            const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+                            
+                            // Set fixed position and size
+                            panel.style.position = 'fixed';
+                            panel.style.width = rect.width + 'px';
+                            panel.style.height = rect.height + 'px';
+                            panel.style.left = (rect.left + scrollX) + 'px';
+                            panel.style.top = (rect.top + scrollY) + 'px';
+                            panel.style.margin = '0';
+                            panel.style.flex = 'none';
+                            panel.style.maxWidth = 'none';
+                            panel.classList.add('floating');
+                            
+                            // Store original position for docking
+                            panel.dataset.originalLeft = rect.left + 'px';
+                            panel.dataset.originalTop = rect.top + 'px';
+                        }
+                    },
+                    move(event) {
+                        const panel = event.target.closest('.flexi-panel');
+                        if (!panel.classList.contains('floating')) return;
+                        
+                        const x = (parseFloat(panel.style.left) || 0) + event.dx;
+                        const y = (parseFloat(panel.style.top) || 0) + event.dy;
+                        
+                        // Keep within viewport bounds
+                        const maxX = window.innerWidth - panel.offsetWidth;
+                        const maxY = window.innerHeight - panel.offsetHeight;
+                        const minX = 0;
+                        const minY = 80; // Below header
+                        
+                        panel.style.left = Math.max(minX, Math.min(x, maxX)) + 'px';
+                        panel.style.top = Math.max(minY, Math.min(y, maxY)) + 'px';
+                    },
+                    end(event) {
+                        // Panel is now floating and can be resized
+                    }
                 }
             });
+
+            // Resizable panels (only when floating)
+            interact('.flexi-panel').resizable({
+                edges: { left: true, right: true, bottom: true, top: true },
+                listeners: {
+                    start(event) {
+                        const panel = event.target;
+                        // Only allow resize when floating or maximized
+                        if (!panel.classList.contains('floating') && !panel.classList.contains('maximized')) {
+                            return false; // Don't allow resize
+                        }
+                        // Ensure panel has fixed positioning for resize
+                        if (!panel.style.position || panel.style.position === 'relative') {
+                            panel.style.position = 'fixed';
+                        }
+                    },
+                    move(event) {
+                        const panel = event.target;
+                        if (!panel.classList.contains('floating') && !panel.classList.contains('maximized')) {
+                            return;
+                        }
+                        
+                        // Update size and position
+                        panel.style.width = event.rect.width + 'px';
+                        panel.style.height = event.rect.height + 'px';
+                        
+                        // Adjust position if resizing from left or top
+                        if (event.deltaRect.left !== 0) {
+                            panel.style.left = (parseFloat(panel.style.left) || 0) + event.deltaRect.left + 'px';
+                        }
+                        if (event.deltaRect.top !== 0) {
+                            panel.style.top = (parseFloat(panel.style.top) || 0) + event.deltaRect.top + 'px';
+                        }
+                        
+                        // Ensure minimum size
+                        if (parseFloat(panel.style.width) < 250) {
+                            panel.style.width = '250px';
+                        }
+                        if (parseFloat(panel.style.height) < 200) {
+                            panel.style.height = '200px';
+                        }
+                        
+                        // Trigger resize for charts and other content
+                        setTimeout(() => {
+                            window.dispatchEvent(new Event('resize'));
+                        }, 10);
+                    }
+                },
+                modifiers: [
+                    interact.modifiers.restrictSize({
+                        min: { width: 250, height: 200 },
+                        max: { width: window.innerWidth, height: window.innerHeight - 80 }
+                    })
+                ]
+            });
+            
+            // Also make resize handle work
+            interact('.flexi-resize-handle').draggable({
+                onstart: function(event) {
+                    const panel = event.target.closest('.flexi-panel');
+                    if (!panel.classList.contains('floating')) {
+                        // Float the panel first
+                        const rect = panel.getBoundingClientRect();
+                        panel.style.position = 'fixed';
+                        panel.style.width = rect.width + 'px';
+                        panel.style.height = rect.height + 'px';
+                        panel.style.left = rect.left + 'px';
+                        panel.style.top = rect.top + 'px';
+                        panel.classList.add('floating');
+                    }
+                },
+                onmove: function(event) {
+                    const panel = event.target.closest('.flexi-panel');
+                    if (panel.classList.contains('floating')) {
+                        const rect = panel.getBoundingClientRect();
+                        const newWidth = rect.width + event.dx;
+                        const newHeight = rect.height + event.dy;
+                        panel.style.width = Math.max(250, newWidth) + 'px';
+                        panel.style.height = Math.max(200, newHeight) + 'px';
+                        window.dispatchEvent(new Event('resize'));
+                    }
+                }
+            });
+
+            // Button handlers
+            document.addEventListener('click', function(e) {
+                const btn = e.target.closest('.flexi-panel-btn');
+                if (!btn) return;
+
+                e.stopPropagation();
+                const panel = btn.closest('.flexi-panel');
+                const action = btn.dataset.action;
+
+                if (action === 'float') {
+                    if (panel.classList.contains('floating')) {
+                        // Dock back to grid - restore original flex behavior
+                        panel.classList.remove('floating');
+                        panel.style.position = '';
+                        panel.style.left = '';
+                        panel.style.top = '';
+                        panel.style.width = '';
+                        panel.style.height = '';
+                        panel.style.margin = '';
+                        panel.style.flex = '';
+                        panel.style.maxWidth = '';
+                    } else {
+                        // Float the panel - make it independent
+                        const rect = panel.getBoundingClientRect();
+                        const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+                        const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+                        
+                        panel.style.position = 'fixed';
+                        panel.style.width = rect.width + 'px';
+                        panel.style.height = rect.height + 'px';
+                        panel.style.left = (rect.left + scrollX) + 'px';
+                        panel.style.top = (rect.top + scrollY) + 'px';
+                        panel.style.margin = '0';
+                        panel.style.flex = 'none';
+                        panel.style.maxWidth = 'none';
+                        panel.classList.add('floating');
+                    }
+                    window.dispatchEvent(new Event('resize'));
+                } else if (action === 'maximize') {
+                    if (panel.classList.contains('maximized')) {
+                        panel.classList.remove('maximized');
+                        panel.style.position = '';
+                        panel.style.left = '';
+                        panel.style.top = '';
+                        panel.style.width = '';
+                        panel.style.height = '';
+                    } else {
+                        panel.classList.add('maximized');
+                        if (panel.classList.contains('floating')) {
+                            panel.classList.remove('floating');
+                        }
+                    }
+                    window.dispatchEvent(new Event('resize'));
+                } else if (action === 'close') {
+                    // Hide panel (can be restored later)
+                    panel.style.display = 'none';
+                }
+            });
+
+            console.log('FlexiPanel system initialized with', panelInstances.size, 'panels');
         }
 
+        // Initialize on load
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initSplitPane);
+            document.addEventListener('DOMContentLoaded', wrapCardsInPanels);
         } else {
-            setTimeout(initSplitPane, 100);
+            setTimeout(wrapCardsInPanels, 300);
         }
+
+        // Re-initialize on dynamic content changes
+        const observer = new MutationObserver(function(mutations) {
+            let shouldReinit = false;
+            mutations.forEach(function(mutation) {
+                if (mutation.addedNodes.length > 0) {
+                    mutation.addedNodes.forEach(function(node) {
+                        if (node.nodeType === 1 && (node.hasAttribute('data-section') || node.querySelector('[data-section]'))) {
+                            shouldReinit = true;
+                        }
+                    });
+                }
+            });
+            if (shouldReinit) {
+                setTimeout(wrapCardsInPanels, 100);
+            }
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
     })();
     </script>
     ''')
 
-    with ui.column().classes("w-full p-4 split-layout"):
-        # Page header
-        ui.label("Time-Series Dashboard").classes("text-3xl font-bold mb-4")
+    # Main flexbox container for all panels
+    with ui.column().classes("w-full").style("display: flex; flex-direction: column; height: calc(100vh - 80px);"):
+        # Panels grid container
+        with ui.column().classes("w-full panels-grid").style("flex: 1; overflow-y: auto;"):
+            # Page header
+            ui.label("Time-Series Dashboard").classes("text-3xl font-bold mb-4")
         
         # Time-series visualization card (with data-section for scrolling)
         with ui.card().classes("w-full").props("data-section='plot'"):
@@ -1110,6 +1653,9 @@ def dashboard_page(client):
                         # Get processing stats by checking storage before/after
                         keys_before = set(app.storage.list_keys() if app.storage else [])
                         
+                        # Log processing attempt
+                        logger.info(f"Processing file: {file_name}, type: {record_type.value}, format: {file_format}")
+                        
                         success = app.process_data_file(temp_path, record_type.value, file_format=file_format)
                         
                         # Get keys after processing
@@ -1123,6 +1669,7 @@ def dashboard_page(client):
                             show_results(True, file_name, new_keys)
                             status_label.text = f"✅ Successfully processed {file_name} ({len(new_keys)} records)"
                             ui.notify(f"Successfully processed {len(new_keys)} records", type="positive")
+                            logger.info(f"Successfully processed {file_name}: {len(new_keys)} records saved")
                             
                             # Refresh visualizations
                             refresh_plot()
@@ -1142,9 +1689,13 @@ def dashboard_page(client):
                             file_info_label.visible = False
                             process_button.set_enabled(False)
                         else:
-                            show_results(False, file_name, error="Processing failed. Check file format.")
-                            status_label.text = "❌ Processing failed. Check file format."
-                            ui.notify("Processing failed. Please check the file format.", type="negative")
+                            error_msg = f"Processing failed for {record_type.value} mode. Check file format and ensure it contains required fields."
+                            if record_type.value == "financial":
+                                error_msg += " Financial files need: ticker/series_id, timestamp, and OHLCV fields (open, high, low, close, vol)."
+                            logger.error(f"Processing failed: {file_name}, type: {record_type.value}, format: {file_format}")
+                            show_results(False, file_name, error=error_msg)
+                            status_label.text = f"❌ Processing failed ({record_type.value} mode)"
+                            ui.notify(error_msg, type="negative")
                     except Exception as e:
                         logger.error(f"Error processing file: {e}", exc_info=True)
                         if 'progress_card' in locals():
