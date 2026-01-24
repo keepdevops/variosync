@@ -2,46 +2,54 @@
 VARIOSYNC Main Application Entry Point
 Orchestrates the VARIOSYNC time-series data processing system.
 """
-import psycopg2
-from dotenv import load_dotenv
 import os
+
+from dotenv import load_dotenv
 
 # Load environment variables from .env
 load_dotenv()
 
-# Fetch variables
-USER = os.getenv("user")
-PASSWORD = os.getenv("password")
-HOST = os.getenv("host")
-PORT = os.getenv("port")
-DBNAME = os.getenv("dbname")
 
-# Connect to the database
-try:
-    connection = psycopg2.connect(
-        user=USER,
-        password=PASSWORD,
-        host=HOST,
-        port=PORT,
-        dbname=DBNAME
-    )
-    print("Connection successful!")
-    
-    # Create a cursor to execute SQL queries
-    cursor = connection.cursor()
-    
-    # Example query
-    cursor.execute("SELECT NOW();")
-    result = cursor.fetchone()
-    print("Current Time:", result)
+def test_database_connection():
+    """
+    Test database connection using environment variables.
+    Only runs when this script is executed directly.
+    """
+    import psycopg2
 
-    # Close the cursor and connection
-    cursor.close()
-    connection.close()
-    print("Connection closed.")
+    # Fetch variables (using DB_ prefix to avoid conflicts with system env vars)
+    db_user = os.getenv("DB_USER") or os.getenv("user")
+    db_password = os.getenv("DB_PASSWORD") or os.getenv("password")
+    db_host = os.getenv("DB_HOST") or os.getenv("host")
+    db_port = os.getenv("DB_PORT") or os.getenv("port")
+    db_name = os.getenv("DB_NAME") or os.getenv("dbname")
 
-except Exception as e:
-    print(f"Failed to connect: {e}")
+    try:
+        connection = psycopg2.connect(
+            user=db_user,
+            password=db_password,
+            host=db_host,
+            port=db_port,
+            dbname=db_name
+        )
+        print("Connection successful!")
+
+        # Create a cursor to execute SQL queries
+        cursor = connection.cursor()
+
+        # Example query
+        cursor.execute("SELECT NOW();")
+        result = cursor.fetchone()
+        print("Current Time:", result)
+
+        # Close the cursor and connection
+        cursor.close()
+        connection.close()
+        print("Connection closed.")
+
+    except Exception as e:
+        print(f"Failed to connect: {e}")
+
 
 # Import from new modular structure
 from app import VariosyncApp
@@ -69,5 +77,10 @@ class VariosyncApp:
 
 
 if __name__ == "__main__":
-    from app.cli import main as cli_main
-    cli_main()
+    # Run database connection test if --test-db flag is provided
+    import sys
+    if "--test-db" in sys.argv:
+        test_database_connection()
+    else:
+        from app.cli import main as cli_main
+        cli_main()
