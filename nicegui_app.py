@@ -203,9 +203,156 @@ def dashboard_page(client):
     
     # Remove default padding and add padding-top to account for fixed header
     client.content.classes(remove='q-pa-md')
-    client.content.style('padding-top: 80px')  # Header height + some spacing
-    
-    with ui.column().classes("w-full p-6 gap-6"):
+    client.content.style('padding-top: 80px')
+
+    # Add CSS for resizable split pane layout
+    ui.add_head_html('''
+    <style>
+        /* Convert the main column into a resizable split layout */
+        .split-layout {
+            display: grid !important;
+            grid-template-rows: 1fr 8px 1fr;
+            height: calc(100vh - 100px) !important;
+            gap: 0 !important;
+            overflow: hidden !important;
+            padding: 8px !important;
+        }
+        .split-layout > .q-card[data-section="plot"] {
+            overflow: hidden;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        /* Plotly container styling */
+        .q-card[data-section="plot"] .js-plotly-plot,
+        .q-card[data-section="plot"] .plotly,
+        .q-card[data-section="plot"] .plot-container {
+            width: 100% !important;
+            min-height: 250px !important;
+        }
+        .q-card[data-section="plot"] nicegui-plotly,
+        .q-card[data-section="plot"] .nicegui-plotly {
+            display: block;
+            width: 100%;
+            min-height: 300px;
+            height: auto;
+        }
+        .split-layout > .resize-handle {
+            background: linear-gradient(to right, transparent 35%, #3b82f6 35%, #3b82f6 65%, transparent 65%);
+            cursor: ns-resize;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+        }
+        .split-layout > .resize-handle:hover {
+            background: linear-gradient(to right, transparent 25%, #1e40af 25%, #1e40af 75%, transparent 75%);
+        }
+        .split-layout > .resize-handle::after {
+            content: "";
+            width: 50px;
+            height: 4px;
+            background: rgba(255,255,255,0.4);
+            border-radius: 2px;
+        }
+        .split-layout > .bottom-wrapper {
+            overflow: auto;
+            min-height: 0;
+        }
+    </style>
+    ''')
+
+    # Add JavaScript for dynamic resize handling
+    ui.add_body_html('''
+    <script>
+    (function() {
+        let initialized = false;
+
+        function initSplitPane() {
+            if (initialized) return;
+
+            const container = document.querySelector('.split-layout');
+            if (!container) {
+                setTimeout(initSplitPane, 200);
+                return;
+            }
+
+            // Find the plot card and bottom content
+            const plotCard = container.querySelector('[data-section="plot"]');
+            const uploadCard = container.querySelector('[data-section="upload"]');
+            const storageCard = container.querySelector('[data-section="storage"]');
+
+            if (!plotCard || !uploadCard) {
+                setTimeout(initSplitPane, 200);
+                return;
+            }
+
+            // Create resize handle if it doesn't exist
+            let handle = container.querySelector('.resize-handle');
+            if (!handle) {
+                handle = document.createElement('div');
+                handle.className = 'resize-handle';
+                plotCard.insertAdjacentElement('afterend', handle);
+            }
+
+            // Create bottom wrapper and move cards into it
+            let bottomWrapper = container.querySelector('.bottom-wrapper');
+            if (!bottomWrapper) {
+                bottomWrapper = document.createElement('div');
+                bottomWrapper.className = 'bottom-wrapper';
+                handle.insertAdjacentElement('afterend', bottomWrapper);
+
+                // Move upload and storage cards into bottom wrapper
+                if (uploadCard) bottomWrapper.appendChild(uploadCard);
+                if (storageCard) bottomWrapper.appendChild(storageCard);
+            }
+
+            initialized = true;
+
+            // Resize handling
+            let isDragging = false;
+
+            handle.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                document.body.style.cursor = 'ns-resize';
+                document.body.style.userSelect = 'none';
+                e.preventDefault();
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+
+                const rect = container.getBoundingClientRect();
+                const containerHeight = rect.height - 8;
+                let topHeight = e.clientY - rect.top;
+
+                topHeight = Math.max(150, Math.min(topHeight, containerHeight - 150));
+                const bottomHeight = containerHeight - topHeight;
+
+                container.style.gridTemplateRows = topHeight + 'px 8px ' + bottomHeight + 'px';
+                window.dispatchEvent(new Event('resize'));
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                    window.dispatchEvent(new Event('resize'));
+                }
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initSplitPane);
+        } else {
+            setTimeout(initSplitPane, 100);
+        }
+    })();
+    </script>
+    ''')
+
+    with ui.column().classes("w-full p-4 split-layout"):
         # Page header
         ui.label("Time-Series Dashboard").classes("text-3xl font-bold mb-4")
         
@@ -308,10 +455,10 @@ def dashboard_page(client):
             )
             plot_figure.update_layout(
                 template="plotly_dark",  # Match NiceGUI dark theme
-                height=500,
-                margin=dict(l=0, r=0, t=0, b=0)
+                autosize=True,
+                margin=dict(l=40, r=20, t=20, b=40)
             )
-            plot_container = ui.plotly(plot_figure).classes("w-full").style("height: 500px")
+            plot_container = ui.plotly(plot_figure).classes("w-full").style("min-height: 350px; height: auto;")
             plot_image = None  # For matplotlib charts
             
             # Store plot components in state
@@ -459,7 +606,7 @@ def dashboard_page(client):
                                 plot_container.delete()
                             except:
                                 pass
-                            plot_container = ui.plotly(plot_figure).classes("w-full").style("height: 600px")
+                            plot_container = ui.plotly(plot_figure).classes("w-full").style("min-height: 350px; height: auto;")
                             # Update state
                             state.set_component("dashboard.plot_container", plot_container)
                             state.set_state("dashboard.plot_figure", plot_figure)
@@ -482,7 +629,7 @@ def dashboard_page(client):
                                 # Method 3: Recreate the component (fallback)
                                 else:
                                     plot_container.delete()
-                                    plot_container = ui.plotly(plot_figure).classes("w-full").style("height: 500px")
+                                    plot_container = ui.plotly(plot_figure).classes("w-full").style("min-height: 350px; height: auto;")
                                     state.set_component("dashboard.plot_container", plot_container)
                             except Exception as update_error:
                                 logger.warning(f"Error updating plot with set_figure, trying update(): {update_error}")
@@ -491,7 +638,7 @@ def dashboard_page(client):
                                 except Exception:
                                     # Final fallback: recreate
                                     plot_container.delete()
-                                    plot_container = ui.plotly(plot_figure).classes("w-full").style("height: 500px")
+                                    plot_container = ui.plotly(plot_figure).classes("w-full").style("min-height: 350px; height: auto;")
                                     state.set_component("dashboard.plot_container", plot_container)
                     
                     logger.info(f"Plot updated with {len(df) if df is not None else 0} records using {chart_library}")

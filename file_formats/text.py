@@ -191,81 +191,195 @@ class TextFormatHandlers:
     def load_txt(file_path: str, delimiter: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Load data from TXT file with auto-detection of delimiter and format.
-        
+
         Args:
             file_path: Path to TXT file
             delimiter: Optional delimiter override (auto-detected if None)
         """
         try:
-            # Auto-detect delimiter if not provided
-            if delimiter is None:
-                delimiter = TextFormatHandlers._detect_delimiter(file_path)
-            
-            # Check if it's Stooq format
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    first_line = f.readline().strip()
-                    if delimiter == ",":
-                        parts = first_line.split(",")
-                        headers = [p.strip().upper() for p in parts]
-                        if "TICKER" in headers and "PER" in headers and "DATE" in headers:
-                            logger.info("Detected Stooq format, using Stooq loader")
-                            try:
-                                from file_formats.stooq import StooqFormatHandler
-                                return StooqFormatHandler.load_stooq(file_path)
-                            except ImportError:
-                                logger.warning("Stooq format handler not available, falling back to regular txt loader")
-                                pass
-            except Exception:
-                pass  # Continue with regular txt loading
-            
-            records = []
-            
+            # Read file content first
             with open(file_path, "r", encoding="utf-8") as f:
-                lines = f.readlines()
-                
-                if len(lines) > 0:
-                    first_line = lines[0].strip().split(delimiter)
-                    has_header = any(char.isalpha() for char in first_line[0])
-                    
-                    start_idx = 1 if has_header else 0
-                    headers = first_line if has_header else None
-                    
-                    for line in lines[start_idx:]:
-                        parts = line.strip().split(delimiter)
-                        if len(parts) >= 2:
-                            if headers and len(headers) == len(parts):
-                                # Convert to standard format
-                                record = {
-                                    "series_id": parts[headers.index(headers[0])] if headers else parts[0],
-                                    "timestamp": parts[headers.index(headers[1])] if len(headers) > 1 else parts[1],
-                                    "measurements": {}
-                                }
-                                # Add remaining fields as measurements
-                                for i, header in enumerate(headers):
-                                    if i >= 2:  # Skip series_id and timestamp
-                                        try:
-                                            value = parts[i] if i < len(parts) else ""
-                                            # Try to convert to number
-                                            try:
-                                                if "." in value:
-                                                    record["measurements"][header.lower()] = float(value)
-                                                else:
-                                                    record["measurements"][header.lower()] = int(value)
-                                            except ValueError:
-                                                record["measurements"][header.lower()] = value
-                                        except IndexError:
-                                            pass
-                            else:
-                                record = {
-                                    "series_id": parts[0],
-                                    "timestamp": parts[1] if len(parts) > 1 else "",
-                                    "measurements": {f"value_{i}": parts[i] for i in range(2, len(parts))}
-                                }
-                            records.append(record)
-            
+                content = f.read()
+                lines = content.strip().split("\n")
+
+            if not lines:
+                logger.warning(f"Empty file: {file_path}")
+                return []
+
+            first_line = lines[0].strip()
+
+            # Check if it's Stooq format (comma-delimited with specific headers)
+            if "," in first_line:
+                parts = first_line.split(",")
+                headers_upper = [p.strip().upper() for p in parts]
+                if "TICKER" in headers_upper and ("DATE" in headers_upper or "PER" in headers_upper):
+                    logger.info("Detected Stooq format, using Stooq loader")
+                    try:
+                        from file_formats.stooq import StooqFormatHandler
+                        return StooqFormatHandler.load_stooq(file_path)
+                    except ImportError:
+                        logger.warning("Stooq format handler not available")
+
+            # Try to auto-detect delimiter if not provided
+            if delimiter is None:
+                # Try different delimiters and pick the one that gives most columns
+                delimiters_to_try = [",", "\t", ";", "|", " "]
+                best_delimiter = "\t"
+                best_col_count = 0
+
+                for delim in delimiters_to_try:
+                    parts = first_line.split(delim)
+                    if len(parts) > best_col_count:
+                        best_col_count = len(parts)
+                        best_delimiter = delim
+
+                delimiter = best_delimiter
+                logger.info(f"Auto-detected delimiter: {repr(delimiter)} ({best_col_count} columns)")
+
+            records = []
+
+            # Parse the first line for headers
+            first_parts = first_line.split(delimiter)
+            has_header = any(char.isalpha() for char in first_parts[0] if char.strip())
+
+            start_idx = 1 if has_header else 0
+            headers = [h.strip() for h in first_parts] if has_header else None
+
+            # Try to identify column roles (date, ticker/series, OHLCV)
+            date_col_idx = None
+            series_col_idx = None
+            ohlcv_cols = {}
+
+            if headers:
+                headers_upper = [h.upper() for h in headers]
+                # Look for date column
+                for i, h in enumerate(headers_upper):
+                    if h in ["DATE", "DATETIME", "TIME", "TIMESTAMP", "DT"]:
+                        date_col_idx = i
+                        break
+
+                # Look for series/ticker column
+                for i, h in enumerate(headers_upper):
+                    if h in ["TICKER", "SYMBOL", "SERIES", "SERIES_ID", "ID", "NAME"]:
+                        series_col_idx = i
+                        break
+
+                # Look for OHLCV columns
+                for i, h in enumerate(headers_upper):
+                    if h in ["OPEN", "O"]:
+                        ohlcv_cols["open"] = i
+                    elif h in ["HIGH", "H"]:
+                        ohlcv_cols["high"] = i
+                    elif h in ["LOW", "L"]:
+                        ohlcv_cols["low"] = i
+                    elif h in ["CLOSE", "C", "ADJ CLOSE", "ADJ_CLOSE", "ADJCLOSE"]:
+                        ohlcv_cols["close"] = i
+                    elif h in ["VOLUME", "VOL", "V"]:
+                        ohlcv_cols["vol"] = i
+
+            # Process data lines
+            for line_num, line in enumerate(lines[start_idx:], start=start_idx):
+                line = line.strip()
+                if not line:
+                    continue
+
+                parts = line.split(delimiter)
+                if len(parts) < 1:
+                    continue
+
+                # Build record
+                record = {
+                    "measurements": {}
+                }
+
+                # Set series_id
+                if series_col_idx is not None and series_col_idx < len(parts):
+                    record["series_id"] = parts[series_col_idx].strip()
+                else:
+                    # Use filename as series_id if no series column
+                    import os
+                    record["series_id"] = os.path.splitext(os.path.basename(file_path))[0]
+
+                # Set timestamp
+                if date_col_idx is not None and date_col_idx < len(parts):
+                    date_val = parts[date_col_idx].strip()
+                    # Try to parse and normalize date
+                    record["timestamp"] = TextFormatHandlers._parse_date(date_val)
+                elif len(parts) > 0:
+                    # Try first column as date
+                    date_val = parts[0].strip()
+                    parsed = TextFormatHandlers._parse_date(date_val)
+                    if parsed != date_val:  # Date was successfully parsed
+                        record["timestamp"] = parsed
+                    else:
+                        record["timestamp"] = f"row_{line_num}"
+
+                # Add OHLCV if detected
+                for field, idx in ohlcv_cols.items():
+                    if idx < len(parts):
+                        val = TextFormatHandlers._convert_to_numeric(parts[idx])
+                        if val is not None:
+                            record["measurements"][field] = val
+
+                # Add other columns as measurements
+                if headers:
+                    for i, header in enumerate(headers):
+                        if i in [date_col_idx, series_col_idx] or i in ohlcv_cols.values():
+                            continue
+                        if i < len(parts):
+                            val = TextFormatHandlers._convert_to_numeric(parts[i])
+                            if val is not None:
+                                record["measurements"][header.lower().replace(" ", "_")] = val
+                else:
+                    # No headers - add all columns as value_N
+                    for i, part in enumerate(parts):
+                        if i == 0 and date_col_idx is None:
+                            continue  # Skip if used as timestamp
+                        val = TextFormatHandlers._convert_to_numeric(part)
+                        if val is not None:
+                            record["measurements"][f"value_{i}"] = val
+
+                # Only add record if it has some data
+                if record.get("timestamp") and (record.get("measurements") or ohlcv_cols):
+                    records.append(record)
+
             logger.info(f"Loaded {len(records)} records from TXT file (delimiter: {repr(delimiter)})")
+
+            if len(records) == 0:
+                logger.warning(f"No records loaded. File may have unsupported format. First line: {first_line[:100]}")
+
             return records
         except Exception as e:
             logger.error(f"Error loading TXT file {file_path}: {e}", exc_info=True)
             return []
+
+    @staticmethod
+    def _parse_date(date_str: str) -> str:
+        """Try to parse various date formats and return ISO format."""
+        from datetime import datetime
+
+        date_str = date_str.strip()
+
+        # Common date formats to try
+        formats = [
+            "%Y-%m-%d",
+            "%Y/%m/%d",
+            "%Y%m%d",
+            "%d-%m-%Y",
+            "%d/%m/%Y",
+            "%m-%d-%Y",
+            "%m/%d/%Y",
+            "%Y-%m-%d %H:%M:%S",
+            "%Y-%m-%dT%H:%M:%S",
+            "%Y%m%d%H%M%S",
+        ]
+
+        for fmt in formats:
+            try:
+                dt = datetime.strptime(date_str, fmt)
+                return dt.isoformat()
+            except ValueError:
+                continue
+
+        # Return original if no format matched
+        return date_str

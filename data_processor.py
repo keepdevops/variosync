@@ -86,10 +86,13 @@ class TimeSeriesProcessor:
     def convert_financial_to_time_series(self, financial_record: Dict[str, Any]) -> Dict[str, Any]:
         """
         Convert financial record to time-series format.
-        
+
+        Handles both flat format (ticker, open, high, low, close, vol)
+        and nested format (series_id, measurements: {open, high, low, close, vol})
+
         Args:
             financial_record: Financial data record
-            
+
         Returns:
             Time-series format record
         """
@@ -97,38 +100,40 @@ class TimeSeriesProcessor:
         is_valid, error = self.validate_record(financial_record, "financial")
         if not is_valid:
             raise ValueError(f"Invalid financial record: {error}")
-        
+
+        # Get ticker/series_id - accept either field name
+        ticker = financial_record.get("ticker") or financial_record.get("series_id")
+
+        # Check if record already has measurements dict (time-series format)
+        existing_measurements = financial_record.get("measurements", {})
+
+        # Helper to get field from record or measurements
+        def get_field(name):
+            if name in financial_record:
+                return financial_record[name]
+            return existing_measurements.get(name)
+
         # Convert to time-series format
         time_series_record = {
-            "series_id": financial_record["ticker"],
+            "series_id": ticker,
             "timestamp": financial_record["timestamp"],
             "measurements": {}
         }
-        
-        # Map OHLCV fields to measurements
-        if "open" in financial_record:
-            time_series_record["measurements"]["open"] = financial_record["open"]
-        
-        if "high" in financial_record:
-            time_series_record["measurements"]["high"] = financial_record["high"]
-        
-        if "low" in financial_record:
-            time_series_record["measurements"]["low"] = financial_record["low"]
-        
-        if "close" in financial_record:
-            time_series_record["measurements"]["close"] = financial_record["close"]
-        
-        if "vol" in financial_record:
-            time_series_record["measurements"]["vol"] = financial_record["vol"]
-        
-        if "openint" in financial_record:
-            time_series_record["measurements"]["openint"] = financial_record["openint"]
-        
+
+        # Copy all existing measurements first
+        if existing_measurements:
+            time_series_record["measurements"].update(existing_measurements)
+
+        # Map OHLCV fields from top-level to measurements (if present at top level)
+        for field in ["open", "high", "low", "close", "vol", "openint"]:
+            if field in financial_record:
+                time_series_record["measurements"][field] = financial_record[field]
+
         # Preserve format if present
         if "format" in financial_record:
             time_series_record["format"] = financial_record["format"]
-        
-        logger.debug(f"Converted financial record {financial_record['ticker']} to time-series format")
+
+        logger.debug(f"Converted financial record {ticker} to time-series format")
         return time_series_record
     
     def process_record(self, record: Dict[str, Any], record_type: str = "time_series") -> Optional[Dict[str, Any]]:

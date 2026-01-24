@@ -53,44 +53,97 @@ class ConfigValidator:
     @staticmethod
     def validate_financial_record(record: Dict[str, Any]) -> tuple[bool, Optional[str]]:
         """
-        Validate financial data record (legacy format).
-        
+        Validate financial data record.
+
+        Accepts both flat format (ticker, open, high, low, close, vol)
+        and time-series format (series_id, measurements: {open, high, low, close, vol})
+
         Args:
             record: Financial record to validate
-            
+
         Returns:
             Tuple of (is_valid, error_message)
         """
         if not isinstance(record, dict):
             return False, "Record must be a dictionary"
-        
-        if "ticker" not in record:
-            return False, "Missing required field: ticker"
-        
+
+        # Accept either 'ticker' or 'series_id' as the identifier
+        ticker = record.get("ticker") or record.get("series_id")
+        if not ticker:
+            return False, "Missing required field: ticker or series_id"
+
         if "timestamp" not in record:
             return False, "Missing required field: timestamp"
-        
-        if "close" not in record:
-            return False, "Missing required field: close"
-        
-        if not isinstance(record["ticker"], str) or not record["ticker"]:
-            return False, "ticker must be a non-empty string"
-        
-        price_fields = ["open", "high", "low", "close"]
-        for field in price_fields:
-            if field in record:
-                value = record[field]
+
+        if not isinstance(ticker, str) or not ticker:
+            return False, "ticker/series_id must be a non-empty string"
+
+        # Check for OHLCV data - can be at top level or in measurements dict
+        measurements = record.get("measurements", {})
+
+        def get_field(name):
+            """Get field from record or measurements."""
+            if name in record:
+                return record[name]
+            return measurements.get(name)
+
+        # Check for numeric data - need at least one numeric measurement
+        # Try common price field names
+        price_field_aliases = {
+            "close": ["close", "c", "adj_close", "adjclose", "adj close", "price", "last"],
+            "open": ["open", "o"],
+            "high": ["high", "h"],
+            "low": ["low", "l"],
+            "vol": ["vol", "volume", "v"],
+        }
+
+        def get_field_with_aliases(field_name):
+            """Get field checking aliases."""
+            aliases = price_field_aliases.get(field_name, [field_name])
+            for alias in aliases:
+                val = get_field(alias)
+                if val is not None:
+                    return val
+                # Also check lowercase in measurements
+                if measurements:
+                    val = measurements.get(alias.lower())
+                    if val is not None:
+                        return val
+            return None
+
+        # Check for close price or any numeric value
+        close_val = get_field_with_aliases("close")
+
+        # If no close field, check if there are any numeric measurements
+        has_numeric_data = False
+        if measurements:
+            for key, val in measurements.items():
+                if isinstance(val, (int, float)):
+                    has_numeric_data = True
+                    if close_val is None:
+                        close_val = val  # Use first numeric as close
+                    break
+
+        if close_val is None and not has_numeric_data:
+            return False, "Missing required field: close (or any numeric measurement)"
+
+        # Validate price fields if present
+        for field in ["open", "high", "low", "close"]:
+            value = get_field_with_aliases(field)
+            if value is not None:
                 if not isinstance(value, (int, float)):
                     return False, f"{field} must be a number"
                 if value < 0:
                     return False, f"{field} must be non-negative"
-        
-        if "vol" in record:
-            if not isinstance(record["vol"], int):
-                return False, "vol must be an integer"
-            if record["vol"] < 0:
+
+        # Validate volume if present
+        vol_val = get_field_with_aliases("vol")
+        if vol_val is not None:
+            if not isinstance(vol_val, (int, float)):
+                return False, "vol must be a number"
+            if vol_val < 0:
                 return False, "vol must be non-negative"
-        
+
         return True, None
     
     @staticmethod
