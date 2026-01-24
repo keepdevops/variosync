@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Card Independence Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #1e1e2e; color: white; }
+        .test-section { margin: 20px 0; padding: 15px; background: #2a2a3e; border-radius: 8px; }
+        .test-item { margin: 10px 0; padding: 10px; background: #3a3a4e; border-radius: 4px; }
+        .pass { color: #10b981; }
+        .fail { color: #ef5350; }
+        .info { color: #60a5fa; }
+    </style>
+</head>
+<body>
+    <h1>Card Independence Test Checklist</h1>
+    
+    <div class="test-section">
+        <h2>Test 1: Independence</h2>
+        <div class="test-item">
+            <input type="checkbox" id="indep1"> Each card operates independently
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="indep2"> Resizing one card doesn't affect others
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="indep3"> Floating one card doesn't affect others
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="indep4"> Each card has its own state
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 2: Resizability (All 4 Sides)</h2>
+        <div class="test-item">
+            <input type="checkbox" id="resize1"> Live Sync Metrics - Resize from right edge
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="resize2"> Live Sync Metrics - Resize from left edge
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="resize3"> Live Sync Metrics - Resize from top edge
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="resize4"> Live Sync Metrics - Resize from bottom edge
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="resize5"> Upload Window - Resize from all edges
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="resize6"> Storage Window - Resize from all edges
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 3: Floatability</h2>
+        <div class="test-item">
+            <input type="checkbox" id="float1"> Live Sync Metrics - Drag header to float
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="float2"> Upload Window - Drag header to float
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="float3"> Storage Window - Drag header to float
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="float4"> Multiple cards can float simultaneously
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="float5"> Click ⧉ button to dock back
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 4: Closeability</h2>
+        <div class="test-item">
+            <input type="checkbox" id="close1"> Live Sync Metrics - Click ✕ to close
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="close2"> Upload Window - Click ✕ to close
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="close3"> Storage Window - Click ✕ to close
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="close4"> Closed cards disappear from view
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="close5"> "Closed Windows" panel appears in top-right
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 5: Restore Functionality</h2>
+        <div class="test-item">
+            <input type="checkbox" id="restore1"> Click closed window name in restore panel
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="restore2"> Window reappears in same position
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="restore3"> Floating state is restored if it was floating
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="restore4"> Size is restored if it was resized
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="restore5"> Content/functionality still works after restore
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="restore6"> Restore panel disappears when all windows restored
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Test 6: Complete Independence</h2>
+        <div class="test-item">
+            <input type="checkbox" id="complete1"> Close all windows, restore one - others stay closed
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="complete2"> Resize one window, close it, restore - size maintained
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="complete3"> Float one window, close it, restore - floating state maintained
+        </div>
+        <div class="test-item">
+            <input type="checkbox" id="complete4"> Each card maintains its own independent state
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Browser Console Checks</h2>
+        <div class="test-item info">
+            Open browser console (F12) and verify:
+        </div>
+        <div class="test-item info">
+            ✓ "Created independent entity: [Card Name]" for each card
+        </div>
+        <div class="test-item info">
+            ✓ "Card closed (can be restored): [Card Name]" when closing
+        </div>
+        <div class="test-item info">
+            ✓ "Panel restored: [Card Name]" when restoring
+        </div>
+        <div class="test-item info">
+            ✓ No JavaScript errors
+        </div>
+    </div>
+</body>
+</html>
