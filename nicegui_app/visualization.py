@@ -28,11 +28,11 @@ def load_timeseries_data() -> Tuple[Optional[pd.DataFrame], List[Dict[str, Any]]
         app = get_app_instance()
         if not app.storage:
             return None, []
-        
+
         # Load all records from storage
         keys = app.storage.list_keys("data/")[:10000]  # Increased limit for better visualization
         records = []
-        
+
         for key in keys:
             try:
                 data_bytes = app.storage.load(key)
@@ -43,26 +43,91 @@ def load_timeseries_data() -> Tuple[Optional[pd.DataFrame], List[Dict[str, Any]]
             except Exception as e:
                 logger.debug(f"Error loading record {key}: {e}")
                 continue
-        
+
         if not records:
             return None, []
-        
+
         # Convert to DataFrame
         df = pd.DataFrame(records)
-        
+
         # Normalize timestamp
         df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
         df = df.dropna(subset=['timestamp'])
-        
+
         if len(df) == 0:
             return None, []
-        
+
         # Sort by timestamp
         df = df.sort_values('timestamp')
-        
+
         return df, records
     except Exception as e:
         logger.error(f"Error loading time-series data: {e}")
+        return None, []
+
+
+def load_timeseries_from_file(file_path: str) -> Tuple[Optional[pd.DataFrame], List[Dict[str, Any]]]:
+    """
+    Load all time-series records from a file directly.
+
+    Supports JSON (array or single record), Parquet, CSV, and other formats
+    that the FileLoader supports. This loads ALL records from the file,
+    not just one.
+
+    Args:
+        file_path: Path to the file to load
+
+    Returns:
+        Tuple of (DataFrame, raw_records) or (None, []) if failed
+    """
+    try:
+        from pathlib import Path
+        from file_loader import FileLoader
+
+        if not Path(file_path).exists():
+            logger.error(f"File not found: {file_path}")
+            return None, []
+
+        # Load all records from file using FileLoader
+        loader = FileLoader()
+        records = loader.load(file_path)
+
+        if not records:
+            logger.warning(f"No records loaded from {file_path}")
+            return None, []
+
+        logger.info(f"Loaded {len(records)} records from file: {file_path}")
+
+        # Convert to DataFrame
+        df = pd.DataFrame(records)
+
+        # Handle nested measurements if present - flatten for plotting
+        if 'measurements' in df.columns:
+            # Expand measurements dict into separate columns
+            measurements_expanded = df['measurements'].apply(
+                lambda x: x if isinstance(x, dict) else {}
+            )
+            measurements_df = pd.json_normalize(measurements_expanded)
+            # Join with original dataframe (keeping measurements column for reference)
+            for col in measurements_df.columns:
+                if col not in df.columns:
+                    df[col] = measurements_df[col]
+
+        # Normalize timestamp
+        if 'timestamp' in df.columns:
+            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+            df = df.dropna(subset=['timestamp'])
+            df = df.sort_values('timestamp')
+
+        if len(df) == 0:
+            logger.warning(f"No valid records with timestamps in {file_path}")
+            return None, []
+
+        logger.info(f"Successfully loaded {len(df)} records from {file_path}")
+        return df, records
+
+    except Exception as e:
+        logger.error(f"Error loading time-series data from file {file_path}: {e}")
         return None, []
 
 

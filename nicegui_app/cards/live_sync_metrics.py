@@ -8,6 +8,7 @@ from logger import get_logger
 from nicegui_app.state import get_state
 from nicegui_app.visualization import (
     load_timeseries_data,
+    load_timeseries_from_file,
     get_available_series,
     is_financial_data,
     get_available_metrics,
@@ -89,6 +90,35 @@ def create_live_sync_metrics_card(panels_grid):
         with ui.card().classes("w-full").props("data-section='plot'"):
             ui.label("📊 Live Sync Metrics").classes("text-xl font-semibold mb-4")
             
+            # Data source controls
+            with ui.row().classes("w-full gap-4 items-center mb-2"):
+                data_source_select = ui.select(
+                    options=["storage", "file"],
+                    label="Data Source",
+                    value="storage"
+                ).classes("w-32")
+
+                file_path_input = ui.input(
+                    label="File Path (JSON, Parquet, CSV)",
+                    placeholder="/path/to/data.json"
+                ).classes("flex-1")
+                file_path_input.visible = False
+
+                load_file_button = ui.button("📂 Load File", icon="folder_open", color="secondary")
+                load_file_button.visible = False
+
+                def on_data_source_change():
+                    is_file = data_source_select.value == "file"
+                    file_path_input.visible = is_file
+                    load_file_button.visible = is_file
+
+                data_source_select.on('update:modelValue', on_data_source_change)
+
+            # Store data source components in state
+            state.set_component("dashboard.data_source_select", data_source_select)
+            state.set_component("dashboard.file_path_input", file_path_input)
+            state.set_state("dashboard.loaded_file_path", None)
+
             # Controls row
             with ui.row().classes("w-full gap-4 items-center"):
                 refresh_button = ui.button("🔄 Refresh Data", icon="refresh", color="primary")
@@ -178,9 +208,18 @@ def create_live_sync_metrics_card(panels_grid):
                 plot_container = state.get_component("dashboard.plot_container")
                 plot_figure = state.get_state("dashboard.plot_figure")
                 plot_image = state.get_state("dashboard.plot_image")
-                
+                data_source = state.get_component("dashboard.data_source_select")
+                file_path_input = state.get_component("dashboard.file_path_input")
+                loaded_file_path = state.get_state("dashboard.loaded_file_path")
+
                 try:
-                    df, records = load_timeseries_data()
+                    # Load data based on selected source
+                    if data_source and data_source.value == "file" and loaded_file_path:
+                        df, records = load_timeseries_from_file(loaded_file_path)
+                        if df is not None:
+                            logger.info(f"Loaded {len(df)} records from file: {loaded_file_path}")
+                    else:
+                        df, records = load_timeseries_data()
                     chart_library = chart_library_select.value if chart_library_select else "plotly"
                     is_financial = is_financial_data(df, series_select.value) if df is not None else False
                     chart_type_select.visible = is_financial
@@ -305,7 +344,33 @@ def create_live_sync_metrics_card(panels_grid):
                 logger.info("Refreshing plot...")
                 update_plot()
                 ui.notify("Plot refreshed", type="info")
-            
+
+            def load_from_file():
+                """Load data from the specified file path."""
+                file_path = file_path_input.value if file_path_input else None
+                if not file_path:
+                    ui.notify("Please enter a file path", type="warning")
+                    return
+
+                from pathlib import Path
+                if not Path(file_path).exists():
+                    ui.notify(f"File not found: {file_path}", type="negative")
+                    return
+
+                # Store the file path and update plot
+                state.set_state("dashboard.loaded_file_path", file_path)
+                logger.info(f"Loading data from file: {file_path}")
+
+                # Load and display record count
+                df, records = load_timeseries_from_file(file_path)
+                if df is not None and len(df) > 0:
+                    ui.notify(f"Loaded {len(df)} records from file", type="positive")
+                    update_plot()
+                else:
+                    ui.notify("No valid records found in file", type="warning")
+
+            load_file_button.on_click(load_from_file)
+
             # Update plot when selections change
             series_select.on('update:modelValue', update_plot)
             metric_select.on('update:modelValue', update_plot)

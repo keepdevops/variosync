@@ -78,6 +78,7 @@ from .health import health_check
 from .state import get_state, UIState
 from .visualization import (
     load_timeseries_data,
+    load_timeseries_from_file,
     get_available_series,
     is_financial_data,
     get_available_metrics,
@@ -136,6 +137,7 @@ __all__ = [
     'HIGHCHARTS_AVAILABLE',
     'ECHARTS_AVAILABLE',
     'load_timeseries_data',
+    'load_timeseries_from_file',
     'get_available_series',
     'is_financial_data',
     'get_available_metrics',
