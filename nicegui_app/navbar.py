@@ -51,9 +51,9 @@ def create_navbar(panels_grid=None, card_initializers=None):
             ui.notify(f"{card_type.title()} card already open", type="info")
             return
         
-        if panels_grid and card_initializers and card_type in card_initializers:
+        if card_initializers and card_type in card_initializers:
             try:
-                card_initializers[card_type](panels_grid)
+                card_initializers[card_type]()
                 initialized_cards[card_type] = True
                 ui.notify(f"{card_type.title()} card initialized", type="positive")
                 
@@ -187,10 +187,6 @@ def create_navbar(panels_grid=None, card_initializers=None):
                         except Exception as e:
                             logger.error(f"Error scrolling to Live Sync Metrics: {e}")
                             ui.notify("Error accessing Live Sync Metrics", type="negative")
-                    
-                    ui.button(icon="bar_chart", on_click=scroll_to_live_sync_metrics).tooltip("📊 Live Sync Metrics (Ctrl/Cmd+L)")
-                    
-                    # API Keys
                     
                     # API Keys
                     ui.button(icon="vpn_key", on_click=show_api_keys_dialog).tooltip("API Keys")
