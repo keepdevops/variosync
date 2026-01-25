@@ -49,20 +49,24 @@ def get_panel_styles() -> str:
         }
 
         /* Card type specific borders */
-        .grid-stack-item-content[data-window-type="plotting"] {
+        .grid-stack-item-content[data-section="plot"] {
             border-color: #10b981;
         }
 
-        .grid-stack-item-content[data-window-type="upload"] {
+        .grid-stack-item-content[data-section="upload"] {
             border-color: #f59e0b;
         }
 
-        .grid-stack-item-content[data-window-type="storage"] {
+        .grid-stack-item-content[data-section="storage"] {
             border-color: #8b5cf6;
         }
 
+        .grid-stack-item-content[data-section="visualization"] {
+            border-color: #ec4899;
+        }
+
         /* Card header - drag handle */
-        .gs-item-header {
+        .gs-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -74,32 +78,36 @@ def get_panel_styles() -> str:
             min-height: 40px;
         }
 
-        .grid-stack-item-content[data-window-type="plotting"] .gs-item-header {
+        .grid-stack-item-content[data-section="plot"] .gs-header {
             background: linear-gradient(135deg, #10b981, #059669);
         }
 
-        .grid-stack-item-content[data-window-type="upload"] .gs-item-header {
+        .grid-stack-item-content[data-section="upload"] .gs-header {
             background: linear-gradient(135deg, #f59e0b, #d97706);
         }
 
-        .grid-stack-item-content[data-window-type="storage"] .gs-item-header {
+        .grid-stack-item-content[data-section="storage"] .gs-header {
             background: linear-gradient(135deg, #8b5cf6, #7c3aed);
         }
 
-        .gs-item-title {
+        .grid-stack-item-content[data-section="visualization"] .gs-header {
+            background: linear-gradient(135deg, #ec4899, #db2777);
+        }
+
+        .gs-title {
             color: white;
             font-weight: 600;
             font-size: 14px;
             flex: 1;
         }
 
-        .gs-item-controls {
+        .gs-controls {
             display: flex;
             gap: 6px;
             align-items: center;
         }
 
-        .gs-item-btn {
+        .gs-btn {
             width: 28px;
             height: 28px;
             border: 2px solid white;
@@ -117,23 +125,23 @@ def get_panel_styles() -> str:
             line-height: 1;
         }
 
-        .gs-item-btn:hover {
+        .gs-btn:hover {
             background: #e0e0e0;
             transform: scale(1.1);
         }
 
-        .gs-item-btn:active {
+        .gs-btn:active {
             transform: scale(0.95);
         }
 
-        .gs-item-btn-close:hover {
+        .gs-btn-close:hover {
             background: #ef4444;
             color: white;
             border-color: #ef4444;
         }
 
         /* Card body */
-        .gs-item-body {
+        .gs-body {
             flex: 1;
             overflow: auto;
             padding: 8px;
@@ -141,19 +149,19 @@ def get_panel_styles() -> str:
             min-height: 0;
         }
 
-        .gs-item-body > .q-card {
+        .gs-body > .q-card {
             background: transparent !important;
             box-shadow: none !important;
             height: 100%;
         }
 
         /* Hide duplicate title in card body */
-        .gs-item-body > .q-card > .text-xl:first-child {
+        .gs-body > .q-card > .text-xl:first-child {
             display: none;
         }
 
         /* Minimized state */
-        .gs-minimized .gs-item-body {
+        .gs-minimized .gs-body {
             display: none !important;
         }
 
@@ -167,9 +175,9 @@ def get_panel_styles() -> str:
         }
 
         /* Plotly chart sizing */
-        .gs-item-body nicegui-plotly,
-        .gs-item-body .js-plotly-plot,
-        .gs-item-body .plotly {
+        .gs-body nicegui-plotly,
+        .gs-body .js-plotly-plot,
+        .gs-body .plotly {
             width: 100% !important;
             height: 100% !important;
             min-height: 280px;
@@ -239,15 +247,15 @@ def get_panel_styles() -> str:
         }
 
         /* Fix for NiceGUI elements inside grid */
-        .gs-item-body .row,
-        .gs-item-body .q-row {
+        .gs-body .row,
+        .gs-body .q-row {
             display: flex;
             flex-wrap: wrap;
             gap: 0.5rem;
         }
 
-        .gs-item-body .column,
-        .gs-item-body .q-column {
+        .gs-body .column,
+        .gs-body .q-column {
             display: flex;
             flex-direction: column;
         }

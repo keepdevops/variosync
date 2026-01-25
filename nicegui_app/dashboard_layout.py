@@ -15,14 +15,14 @@ def create_dashboard_layout():
     state = get_state()
     
     # Main flexbox container for all panels
-    main_container = ui.column().classes("w-full").style("display: flex; flex-direction: column; height: calc(100vh - 80px); overflow: hidden;")
+    main_container = ui.column().classes("w-full").style("display: flex; flex-direction: column; height: calc(100vh - 80px); overflow: auto;")
 
     with main_container:
         # Page header - outside scrollable area
         ui.label("Time-Series Dashboard").classes("text-3xl font-bold mb-2 px-3 pt-2").style("flex-shrink: 0;")
 
-        # Panels grid container - flexbox layout (scrollable)
-        panels_grid = ui.column().classes("w-full panels-grid").style("flex: 1;")
+        # Panels grid container - gridstack layout (scrollable)
+        panels_grid = ui.column().classes("w-full panels-grid").style("flex: 1; overflow: visible; min-height: 600px;")
 
     return main_container, panels_grid
 

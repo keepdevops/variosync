@@ -15,6 +15,7 @@ def get_panel_interactions_js() -> str:
     <link href="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack.min.css" rel="stylesheet"/>
     <link href="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-extra.min.css" rel="stylesheet"/>
     <script src="https://cdn.jsdelivr.net/npm/gridstack@10.3.1/dist/gridstack-all.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
     <script>
     (function() {
         // Prevent multiple initializations
@@ -30,8 +31,12 @@ def get_panel_interactions_js() -> str:
         const cardConfigs = {
             'plot': { w: 12, h: 6, title: '📊 Live Sync Metrics' },
             'upload': { w: 6, h: 5, title: '📤 Upload & Process Files' },
-            'storage': { w: 6, h: 5, title: '💾 Storage Browser' }
+            'storage': { w: 6, h: 5, title: '💾 Storage Browser' },
+            'visualization': { w: 6, h: 6, title: '📈 Data Visualization' }
         };
+
+        // Counter for unique visualization card IDs
+        let vizCardCounter = 0;
 
         function initGridStack() {
             if (grid) return;
@@ -226,6 +231,80 @@ def get_panel_interactions_js() -> str:
         // Expose for debugging
         window.gsGrid = () => grid;
         window.gsAddCard = addCardToGrid;
+
+        // Function to create dynamic visualization cards
+        window.createVizCard = function(cardId, title) {
+            if (!grid) initGridStack();
+            if (!grid) {
+                console.error('Grid not initialized');
+                return null;
+            }
+
+            const config = cardConfigs['visualization'];
+            vizCardCounter++;
+            const uniqueId = cardId || `viz-${vizCardCounter}`;
+
+            // Create grid-stack-item wrapper
+            const wrapper = document.createElement('div');
+            wrapper.className = 'grid-stack-item';
+            wrapper.setAttribute('gs-w', config.w);
+            wrapper.setAttribute('gs-h', config.h);
+            wrapper.setAttribute('gs-x', (vizCardCounter % 2) * 6);
+            wrapper.setAttribute('gs-y', 'auto');
+            wrapper.setAttribute('gs-id', uniqueId);
+
+            // Create content wrapper with header
+            const content = document.createElement('div');
+            content.className = 'grid-stack-item-content';
+            content.dataset.section = 'visualization';
+            content.dataset.windowType = 'visualization';
+
+            // Header for drag handle
+            const header = document.createElement('div');
+            header.className = 'gs-header';
+            header.innerHTML = `
+                <span class="gs-title">${title || config.title}</span>
+                <div class="gs-controls">
+                    <button class="gs-btn" data-action="minimize" title="Minimize">−</button>
+                    <button class="gs-btn" data-action="maximize" title="Maximize">□</button>
+                    <button class="gs-btn gs-btn-close" data-action="close" title="Close">✕</button>
+                </div>
+            `;
+
+            // Body to hold card content
+            const body = document.createElement('div');
+            body.className = 'gs-body';
+            body.id = `viz-body-${uniqueId}`;
+
+            content.appendChild(header);
+            content.appendChild(body);
+            wrapper.appendChild(content);
+
+            // Add to grid
+            grid.addWidget(wrapper);
+
+            // Setup button handlers
+            setupButtons(wrapper, uniqueId);
+
+            // Scroll to the new card
+            setTimeout(() => {
+                wrapper.scrollIntoView({behavior: "smooth", block: "center"});
+                window.dispatchEvent(new Event('resize'));
+            }, 200);
+
+            console.log('Visualization card created:', uniqueId);
+            return `viz-body-${uniqueId}`;
+        };
+
+        // Function to remove a visualization card by ID
+        window.removeVizCard = function(cardId) {
+            if (!grid) return;
+            const wrapper = document.querySelector(`.grid-stack-item[gs-id="${cardId}"]`);
+            if (wrapper) {
+                grid.removeWidget(wrapper);
+                console.log('Visualization card removed:', cardId);
+            }
+        };
 
         console.log('Gridstack panel system ready');
     })();
