@@ -3,6 +3,7 @@ Text format loaders (JSON, CSV, TXT).
 """
 import csv
 import json
+import re
 from typing import Any, Dict, List, Optional
 
 from logger import get_logger
@@ -223,15 +224,24 @@ class TextFormatHandlers:
             # Try to auto-detect delimiter if not provided
             if delimiter is None:
                 # Try different delimiters and pick the one that gives most columns
-                delimiters_to_try = [",", "\t", ";", "|", " "]
+                delimiters_to_try = [",", "\t", ";", "|"]
                 best_delimiter = "\t"
                 best_col_count = 0
 
                 for delim in delimiters_to_try:
                     parts = first_line.split(delim)
-                    if len(parts) > best_col_count:
-                        best_col_count = len(parts)
+                    # Filter out empty parts for accurate count
+                    non_empty_parts = [p for p in parts if p.strip()]
+                    if len(non_empty_parts) > best_col_count:
+                        best_col_count = len(non_empty_parts)
                         best_delimiter = delim
+
+                # If no good delimiter found (only 1 column), try whitespace splitting
+                if best_col_count <= 1:
+                    whitespace_parts = re.split(r'\s+', first_line.strip())
+                    if len(whitespace_parts) > best_col_count:
+                        best_col_count = len(whitespace_parts)
+                        best_delimiter = "WHITESPACE"  # Special marker
 
                 delimiter = best_delimiter
                 logger.info(f"Auto-detected delimiter: {repr(delimiter)} ({best_col_count} columns)")
@@ -239,7 +249,10 @@ class TextFormatHandlers:
             records = []
 
             # Parse the first line for headers
-            first_parts = first_line.split(delimiter)
+            if delimiter == "WHITESPACE":
+                first_parts = re.split(r'\s+', first_line.strip())
+            else:
+                first_parts = first_line.split(delimiter)
             has_header = any(char.isalpha() for char in first_parts[0] if char.strip())
 
             start_idx = 1 if has_header else 0
@@ -259,7 +272,10 @@ class TextFormatHandlers:
                 # Check for header/data column mismatch (missing PER column in Stooq files)
                 # If header count differs from first data row, try to detect and fix
                 if len(lines) > start_idx:
-                    first_data_parts = lines[start_idx].strip().split(delimiter)
+                    if delimiter == "WHITESPACE":
+                        first_data_parts = re.split(r'\s+', lines[start_idx].strip())
+                    else:
+                        first_data_parts = lines[start_idx].strip().split(delimiter)
                     if len(first_data_parts) > len(headers):
                         # Check if this looks like Stooq with missing PER header
                         # Data has extra column (period like 'D', '5', etc.) after ticker
@@ -302,7 +318,10 @@ class TextFormatHandlers:
                 if not line:
                     continue
 
-                parts = line.split(delimiter)
+                if delimiter == "WHITESPACE":
+                    parts = re.split(r'\s+', line.strip())
+                else:
+                    parts = line.split(delimiter)
                 if len(parts) < 1:
                     continue
 
