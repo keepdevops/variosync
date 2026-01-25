@@ -201,6 +201,8 @@ def create_live_sync_metrics_card(panels_grid):
             
             def update_plot():
                 """Update the plot with current data and selections."""
+                logger.debug("[update_plot] Starting plot update")
+
                 chart_library_select = state.get_component("dashboard.chart_library_select")
                 series_select = state.get_component("dashboard.series_select")
                 metric_select = state.get_component("dashboard.metric_select")
@@ -212,43 +214,84 @@ def create_live_sync_metrics_card(panels_grid):
                 file_path_input = state.get_component("dashboard.file_path_input")
                 loaded_file_path = state.get_state("dashboard.loaded_file_path")
 
+                # Log component states
+                logger.debug(f"[update_plot] Data source: {data_source.value if data_source else 'N/A'}")
+                logger.debug(f"[update_plot] Loaded file path: {loaded_file_path}")
+                logger.debug(f"[update_plot] Chart library: {chart_library_select.value if chart_library_select else 'N/A'}")
+
                 try:
                     # Load data based on selected source
+                    df = None
+                    records = []
+
                     if data_source and data_source.value == "file" and loaded_file_path:
+                        logger.info(f"[update_plot] Loading from file: {loaded_file_path}")
                         df, records = load_timeseries_from_file(loaded_file_path)
                         if df is not None:
-                            logger.info(f"Loaded {len(df)} records from file: {loaded_file_path}")
+                            logger.info(f"[update_plot] Loaded {len(df)} records from file: {loaded_file_path}")
+                        else:
+                            logger.warning(f"[update_plot] Failed to load data from file: {loaded_file_path}")
                     else:
+                        logger.debug("[update_plot] Loading from storage")
                         df, records = load_timeseries_data()
+                        if df is not None:
+                            logger.info(f"[update_plot] Loaded {len(df)} records from storage")
+                        else:
+                            logger.debug("[update_plot] No data loaded from storage")
+
+                    # Log DataFrame info
+                    if df is not None:
+                        logger.debug(f"[update_plot] DataFrame shape: {df.shape}")
+                        logger.debug(f"[update_plot] DataFrame columns: {list(df.columns)}")
+                        numeric_cols = list(df.select_dtypes(include=['number']).columns)
+                        logger.debug(f"[update_plot] Numeric columns: {numeric_cols}")
+                    else:
+                        logger.warning("[update_plot] DataFrame is None - no data to plot")
+
                     chart_library = chart_library_select.value if chart_library_select else "plotly"
                     is_financial = is_financial_data(df, series_select.value) if df is not None else False
+                    logger.debug(f"[update_plot] Is financial data: {is_financial}")
                     chart_type_select.visible = is_financial
                     
                     available_series = get_available_series(df)
+                    logger.debug(f"[update_plot] Available series: {available_series}")
                     series_select.options = available_series
                     if available_series and series_select.value not in available_series:
                         series_select.value = available_series[0] if available_series else None
-                    
+                        logger.debug(f"[update_plot] Auto-selected series: {series_select.value}")
+
                     selected_series = series_select.value if series_select.value else None
+                    logger.debug(f"[update_plot] Selected series: {selected_series}")
+
                     if is_financial:
                         metric_select.visible = False
+                        logger.debug("[update_plot] Financial data detected, hiding metric selector")
                     else:
                         metric_select.visible = True
                         available_metrics = get_available_metrics(df, selected_series)
+                        logger.debug(f"[update_plot] Available metrics: {available_metrics}")
                         metric_select.options = available_metrics
                         if available_metrics and metric_select.value not in available_metrics:
                             metric_select.value = available_metrics[0] if available_metrics else None
-                    
+                            logger.debug(f"[update_plot] Auto-selected metric: {metric_select.value}")
+
                     chart_type = chart_type_select.value if is_financial else "auto"
+                    logger.debug(f"[update_plot] Chart type: {chart_type}")
                     
                     # Create plot based on selected library
+                    logger.debug(f"[update_plot] Creating plot with library: {chart_library}")
+
                     if chart_library == "matplotlib" and MATPLOTLIB_AVAILABLE:
+                        logger.debug("[update_plot] Using Matplotlib for plotting")
                         if is_financial:
+                            logger.debug(f"[update_plot] Creating Matplotlib financial plot, chart_type: {chart_type}")
                             mpl_fig = create_matplotlib_financial_plot(df, series_select.value, chart_type, show_volume=True)
                         else:
+                            logger.debug(f"[update_plot] Creating Matplotlib plot, metric: {metric_select.value}")
                             mpl_fig = create_matplotlib_plot(df, series_select.value, metric_select.value)
-                        
+
                         if mpl_fig:
+                            logger.debug("[update_plot] Matplotlib figure created successfully")
                             img_data = matplotlib_figure_to_base64(mpl_fig)
                             try:
                                 plot_container.delete()
@@ -258,6 +301,8 @@ def create_live_sync_metrics_card(panels_grid):
                             plot_container = plot_image
                             state.set_component("dashboard.plot_container", plot_container)
                             state.set_state("dashboard.plot_image", plot_image)
+                        else:
+                            logger.warning("[update_plot] Matplotlib figure creation returned None")
                     elif chart_library == "altair" and ALTAIR_AVAILABLE and create_altair_plot_wrapper:
                         try:
                             altair_chart = create_altair_plot_wrapper(df, series_select.value, metric_select.value, chart_type)
@@ -302,9 +347,19 @@ def create_live_sync_metrics_card(panels_grid):
                             ui.notify(f"ECharts chart error: {str(e)}", type="negative")
                     else:
                         # Use Plotly (default)
+                        logger.debug("[update_plot] Using Plotly for plotting")
+                        logger.debug(f"[update_plot] Plotly params - series: {series_select.value}, metric: {metric_select.value}, chart_type: {chart_type}")
                         new_fig = create_plot(df, series_select.value, metric_select.value, chart_type)
+
+                        if new_fig is None:
+                            logger.error("[update_plot] Plotly create_plot returned None")
+                        else:
+                            trace_count = len(new_fig.data) if hasattr(new_fig, 'data') else 0
+                            logger.debug(f"[update_plot] Plotly figure created with {trace_count} traces")
+
                         has_subplots = hasattr(new_fig, '_grid_ref') and new_fig._grid_ref is not None
-                        
+                        logger.debug(f"[update_plot] Has subplots: {has_subplots}")
+
                         if has_subplots:
                             plot_figure = new_fig
                             try:
@@ -334,9 +389,10 @@ def create_live_sync_metrics_card(panels_grid):
                                 plot_container = ui.plotly(plot_figure).classes("w-full").style("min-height: 350px; height: auto;")
                                 state.set_component("dashboard.plot_container", plot_container)
                     
-                    logger.info(f"Plot updated with {len(df) if df is not None else 0} records using {chart_library}")
+                    record_count = len(df) if df is not None else 0
+                    logger.info(f"[update_plot] Plot updated successfully with {record_count} records using {chart_library}")
                 except Exception as e:
-                    logger.error(f"Error updating plot: {e}", exc_info=True)
+                    logger.error(f"[update_plot] Error updating plot: {e}", exc_info=True)
                     ui.notify(f"Error updating plot: {str(e)}", type="negative")
             
             def refresh_plot():
@@ -347,27 +403,63 @@ def create_live_sync_metrics_card(panels_grid):
 
             def load_from_file():
                 """Load data from the specified file path."""
+                logger.debug("[load_from_file] Starting file load")
+
                 file_path = file_path_input.value if file_path_input else None
+
+                # Validate file path
                 if not file_path:
+                    logger.warning("[load_from_file] Empty file path")
                     ui.notify("Please enter a file path", type="warning")
                     return
 
+                file_path = file_path.strip()
+                logger.info(f"[load_from_file] Attempting to load: {file_path}")
+
                 from pathlib import Path
-                if not Path(file_path).exists():
+                path_obj = Path(file_path)
+
+                if not path_obj.exists():
+                    logger.error(f"[load_from_file] File not found: {file_path}")
                     ui.notify(f"File not found: {file_path}", type="negative")
+                    return
+
+                if not path_obj.is_file():
+                    logger.error(f"[load_from_file] Path is not a file: {file_path}")
+                    ui.notify(f"Path is not a file: {file_path}", type="negative")
+                    return
+
+                # Log file info
+                file_size = path_obj.stat().st_size
+                logger.info(f"[load_from_file] File: {file_path}, size: {file_size} bytes ({file_size / 1024:.2f} KB)")
+
+                if file_size == 0:
+                    logger.warning(f"[load_from_file] File is empty: {file_path}")
+                    ui.notify("File is empty", type="warning")
                     return
 
                 # Store the file path and update plot
                 state.set_state("dashboard.loaded_file_path", file_path)
-                logger.info(f"Loading data from file: {file_path}")
+                logger.info(f"[load_from_file] Set loaded file path in state: {file_path}")
 
                 # Load and display record count
                 df, records = load_timeseries_from_file(file_path)
-                if df is not None and len(df) > 0:
-                    ui.notify(f"Loaded {len(df)} records from file", type="positive")
-                    update_plot()
-                else:
+
+                if df is None:
+                    logger.error(f"[load_from_file] Failed to load DataFrame from: {file_path}")
+                    ui.notify("Failed to parse file", type="negative")
+                    return
+
+                if len(df) == 0:
+                    logger.warning(f"[load_from_file] No valid records in file: {file_path}")
                     ui.notify("No valid records found in file", type="warning")
+                    return
+
+                logger.info(f"[load_from_file] Successfully loaded {len(df)} records")
+                logger.debug(f"[load_from_file] Columns: {list(df.columns)}")
+
+                ui.notify(f"Loaded {len(df)} records from file", type="positive")
+                update_plot()
 
             load_file_button.on_click(load_from_file)
 

@@ -24,14 +24,24 @@ if MATPLOTLIB_AVAILABLE:
 
 def load_timeseries_data() -> Tuple[Optional[pd.DataFrame], List[Dict[str, Any]]]:
     """Load time-series data from storage."""
+    logger.debug("[load_timeseries_data] Starting to load from storage")
     try:
         app = get_app_instance()
         if not app.storage:
+            logger.warning("[load_timeseries_data] No storage instance available")
             return None, []
 
         # Load all records from storage
         keys = app.storage.list_keys("data/")[:10000]  # Increased limit for better visualization
+        logger.info(f"[load_timeseries_data] Found {len(keys)} keys in storage with prefix 'data/'")
+
+        if not keys:
+            logger.warning("[load_timeseries_data] No keys found in storage")
+            return None, []
+
         records = []
+        load_errors = 0
+        no_timestamp = 0
 
         for key in keys:
             try:
@@ -40,36 +50,55 @@ def load_timeseries_data() -> Tuple[Optional[pd.DataFrame], List[Dict[str, Any]]
                     record = json.loads(data_bytes.decode('utf-8'))
                     if 'timestamp' in record:
                         records.append(record)
+                    else:
+                        no_timestamp += 1
+                else:
+                    load_errors += 1
             except Exception as e:
-                logger.debug(f"Error loading record {key}: {e}")
+                logger.debug(f"[load_timeseries_data] Error loading record {key}: {e}")
+                load_errors += 1
                 continue
 
+        logger.info(f"[load_timeseries_data] Loaded {len(records)} records with timestamps, {no_timestamp} without timestamp, {load_errors} errors")
+
         if not records:
+            logger.warning("[load_timeseries_data] No records with timestamps found")
             return None, []
 
         # Convert to DataFrame
         df = pd.DataFrame(records)
+        logger.debug(f"[load_timeseries_data] DataFrame created with shape: {df.shape}, columns: {list(df.columns)}")
 
         # Normalize timestamp - filter out synthetic row_N timestamps first
         valid_timestamp_mask = ~df['timestamp'].astype(str).str.match(r'^row_\d+$')
+        synthetic_count = (~valid_timestamp_mask).sum()
         df = df[valid_timestamp_mask]
 
+        if synthetic_count > 0:
+            logger.debug(f"[load_timeseries_data] Filtered out {synthetic_count} synthetic row_N timestamps")
+
         if len(df) == 0:
-            logger.warning("No valid timestamps found in data (only synthetic row_N identifiers)")
+            logger.warning("[load_timeseries_data] No valid timestamps found in data (only synthetic row_N identifiers)")
             return None, []
 
         df['timestamp'] = pd.to_datetime(df['timestamp'], format='mixed', errors='coerce')
+        invalid_ts_count = df['timestamp'].isna().sum()
         df = df.dropna(subset=['timestamp'])
 
+        if invalid_ts_count > 0:
+            logger.debug(f"[load_timeseries_data] Dropped {invalid_ts_count} records with invalid timestamps")
+
         if len(df) == 0:
+            logger.warning("[load_timeseries_data] All timestamps were invalid after conversion")
             return None, []
 
         # Sort by timestamp
         df = df.sort_values('timestamp')
+        logger.info(f"[load_timeseries_data] Successfully loaded {len(df)} records, date range: {df['timestamp'].min()} to {df['timestamp'].max()}")
 
         return df, records
     except Exception as e:
-        logger.error(f"Error loading time-series data: {e}")
+        logger.error(f"[load_timeseries_data] Error loading time-series data: {e}", exc_info=True)
         return None, []
 
 
@@ -87,34 +116,73 @@ def load_timeseries_from_file(file_path: str) -> Tuple[Optional[pd.DataFrame], L
     Returns:
         Tuple of (DataFrame, raw_records) or (None, []) if failed
     """
+    logger.debug(f"[load_timeseries_from_file] Starting load from file: {file_path}")
     try:
         from pathlib import Path
         from file_loader import FileLoader
 
-        if not Path(file_path).exists():
-            logger.error(f"File not found: {file_path}")
+        # Validate file path
+        if not file_path:
+            logger.error("[load_timeseries_from_file] Empty file path provided")
+            return None, []
+
+        path_obj = Path(file_path)
+        if not path_obj.exists():
+            logger.error(f"[load_timeseries_from_file] File not found: {file_path}")
+            return None, []
+
+        if not path_obj.is_file():
+            logger.error(f"[load_timeseries_from_file] Path is not a file: {file_path}")
+            return None, []
+
+        file_size = path_obj.stat().st_size
+        logger.info(f"[load_timeseries_from_file] File: {file_path}, size: {file_size} bytes ({file_size / 1024:.2f} KB)")
+
+        if file_size == 0:
+            logger.warning(f"[load_timeseries_from_file] File is empty: {file_path}")
             return None, []
 
         # Load all records from file using FileLoader
         loader = FileLoader()
         records = loader.load(file_path)
 
-        if not records:
-            logger.warning(f"No records loaded from {file_path}")
+        if records is None:
+            logger.error(f"[load_timeseries_from_file] FileLoader returned None for: {file_path}")
             return None, []
 
-        logger.info(f"Loaded {len(records)} records from file: {file_path}")
+        if not records:
+            logger.warning(f"[load_timeseries_from_file] No records loaded from {file_path}")
+            return None, []
+
+        logger.info(f"[load_timeseries_from_file] Loaded {len(records)} records from file: {file_path}")
+
+        # Validate records structure
+        if not isinstance(records, list):
+            logger.error(f"[load_timeseries_from_file] Records is not a list: {type(records)}")
+            return None, []
+
+        if len(records) > 0:
+            sample = records[0]
+            if isinstance(sample, dict):
+                logger.debug(f"[load_timeseries_from_file] Sample record keys: {list(sample.keys())[:10]}")
+            else:
+                logger.warning(f"[load_timeseries_from_file] First record is not a dict: {type(sample)}")
 
         # Convert to DataFrame
         df = pd.DataFrame(records)
+        logger.debug(f"[load_timeseries_from_file] DataFrame created with shape: {df.shape}")
+        logger.debug(f"[load_timeseries_from_file] DataFrame columns: {list(df.columns)}")
 
         # Handle nested measurements if present - flatten for plotting
         if 'measurements' in df.columns:
+            logger.debug("[load_timeseries_from_file] Found 'measurements' column, expanding nested structure")
             # Expand measurements dict into separate columns
             measurements_expanded = df['measurements'].apply(
                 lambda x: x if isinstance(x, dict) else {}
             )
             measurements_df = pd.json_normalize(measurements_expanded)
+            expanded_cols = list(measurements_df.columns)
+            logger.debug(f"[load_timeseries_from_file] Expanded measurement columns: {expanded_cols}")
             # Join with original dataframe (keeping measurements column for reference)
             for col in measurements_df.columns:
                 if col not in df.columns:
@@ -122,26 +190,49 @@ def load_timeseries_from_file(file_path: str) -> Tuple[Optional[pd.DataFrame], L
 
         # Normalize timestamp - filter out synthetic row_N timestamps first
         if 'timestamp' in df.columns:
+            original_count = len(df)
             valid_timestamp_mask = ~df['timestamp'].astype(str).str.match(r'^row_\d+$')
+            synthetic_count = (~valid_timestamp_mask).sum()
             df = df[valid_timestamp_mask]
 
+            if synthetic_count > 0:
+                logger.debug(f"[load_timeseries_from_file] Filtered out {synthetic_count} synthetic row_N timestamps")
+
             if len(df) == 0:
-                logger.warning(f"No valid timestamps found in {file_path} (only synthetic row_N identifiers)")
+                logger.warning(f"[load_timeseries_from_file] No valid timestamps found in {file_path} (only synthetic row_N identifiers)")
                 return None, []
 
             df['timestamp'] = pd.to_datetime(df['timestamp'], format='mixed', errors='coerce')
+            invalid_count = df['timestamp'].isna().sum()
             df = df.dropna(subset=['timestamp'])
+
+            if invalid_count > 0:
+                logger.debug(f"[load_timeseries_from_file] Dropped {invalid_count} records with invalid timestamps")
+
             df = df.sort_values('timestamp')
+            logger.debug(f"[load_timeseries_from_file] After timestamp processing: {len(df)} records (from {original_count})")
+        else:
+            logger.warning(f"[load_timeseries_from_file] No 'timestamp' column found in {file_path}")
+            logger.debug(f"[load_timeseries_from_file] Available columns: {list(df.columns)}")
 
         if len(df) == 0:
-            logger.warning(f"No valid records with timestamps in {file_path}")
+            logger.warning(f"[load_timeseries_from_file] No valid records with timestamps in {file_path}")
             return None, []
 
-        logger.info(f"Successfully loaded {len(df)} records from {file_path}")
+        # Log final result
+        if 'timestamp' in df.columns:
+            logger.info(f"[load_timeseries_from_file] Successfully loaded {len(df)} records, date range: {df['timestamp'].min()} to {df['timestamp'].max()}")
+        else:
+            logger.info(f"[load_timeseries_from_file] Successfully loaded {len(df)} records (no timestamp column)")
+
+        # Log available numeric columns for plotting
+        numeric_cols = list(df.select_dtypes(include=['number']).columns)
+        logger.debug(f"[load_timeseries_from_file] Numeric columns available for plotting: {numeric_cols}")
+
         return df, records
 
     except Exception as e:
-        logger.error(f"Error loading time-series data from file {file_path}: {e}")
+        logger.error(f"[load_timeseries_from_file] Error loading time-series data from file {file_path}: {e}", exc_info=True)
         return None, []
 
 
