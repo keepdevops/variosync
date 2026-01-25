@@ -249,12 +249,31 @@ class TextFormatHandlers:
             date_col_idx = None
             series_col_idx = None
             ohlcv_cols = {}
+            headers_clean = None
 
             if headers:
-                headers_upper = [h.upper() for h in headers]
-                # Look for date column
+                # Strip angle brackets from headers (e.g., <TICKER> -> TICKER)
+                headers_clean = [h.strip('<>') for h in headers]
+                headers_upper = [h.upper() for h in headers_clean]
+
+                # Check for header/data column mismatch (missing PER column in Stooq files)
+                # If header count differs from first data row, try to detect and fix
+                if len(lines) > start_idx:
+                    first_data_parts = lines[start_idx].strip().split(delimiter)
+                    if len(first_data_parts) > len(headers):
+                        # Check if this looks like Stooq with missing PER header
+                        # Data has extra column (period like 'D', '5', etc.) after ticker
+                        if (len(first_data_parts) == len(headers) + 1 and
+                            "TICKER" in headers_upper and
+                            first_data_parts[1].strip() in ["D", "W", "M", "5", "15", "30", "60"]):
+                            # Insert PER column at position 1
+                            headers_clean.insert(1, "PER")
+                            headers_upper.insert(1, "PER")
+                            logger.info("Detected missing PER column in Stooq-style file, adjusting headers")
+
+                # Look for date column (TIME alone is not a date - it's typically HHMMSS)
                 for i, h in enumerate(headers_upper):
-                    if h in ["DATE", "DATETIME", "TIME", "TIMESTAMP", "DT"]:
+                    if h in ["DATE", "DATETIME", "TIMESTAMP", "DT"]:
                         date_col_idx = i
                         break
 
@@ -312,18 +331,22 @@ class TextFormatHandlers:
                     if parsed != date_val:  # Date was successfully parsed
                         record["timestamp"] = parsed
                     else:
+                        # No valid date found - use synthetic timestamp (won't plot)
                         record["timestamp"] = f"row_{line_num}"
+                        if line_num == start_idx:
+                            logger.warning(f"No date/timestamp column detected in file. First value '{date_val[:50]}' is not a recognized date format.")
 
-                # Add OHLCV if detected
+                # Add OHLCV if detected - put at top level for financial chart support
                 for field, idx in ohlcv_cols.items():
                     if idx < len(parts):
                         val = TextFormatHandlers._convert_to_numeric(parts[idx])
                         if val is not None:
-                            record["measurements"][field] = val
+                            record[field] = val  # Top level for financial charts
+                            record["measurements"][field] = val  # Also in measurements for compatibility
 
-                # Add other columns as measurements
-                if headers:
-                    for i, header in enumerate(headers):
+                # Add other columns as measurements (use cleaned headers without angle brackets)
+                if headers_clean:
+                    for i, header in enumerate(headers_clean):
                         if i in [date_col_idx, series_col_idx] or i in ohlcv_cols.values():
                             continue
                         if i < len(parts):

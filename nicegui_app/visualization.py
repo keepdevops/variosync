@@ -50,8 +50,15 @@ def load_timeseries_data() -> Tuple[Optional[pd.DataFrame], List[Dict[str, Any]]
         # Convert to DataFrame
         df = pd.DataFrame(records)
 
-        # Normalize timestamp
-        df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+        # Normalize timestamp - filter out synthetic row_N timestamps first
+        valid_timestamp_mask = ~df['timestamp'].astype(str).str.match(r'^row_\d+$')
+        df = df[valid_timestamp_mask]
+
+        if len(df) == 0:
+            logger.warning("No valid timestamps found in data (only synthetic row_N identifiers)")
+            return None, []
+
+        df['timestamp'] = pd.to_datetime(df['timestamp'], format='mixed', errors='coerce')
         df = df.dropna(subset=['timestamp'])
 
         if len(df) == 0:
@@ -113,9 +120,16 @@ def load_timeseries_from_file(file_path: str) -> Tuple[Optional[pd.DataFrame], L
                 if col not in df.columns:
                     df[col] = measurements_df[col]
 
-        # Normalize timestamp
+        # Normalize timestamp - filter out synthetic row_N timestamps first
         if 'timestamp' in df.columns:
-            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+            valid_timestamp_mask = ~df['timestamp'].astype(str).str.match(r'^row_\d+$')
+            df = df[valid_timestamp_mask]
+
+            if len(df) == 0:
+                logger.warning(f"No valid timestamps found in {file_path} (only synthetic row_N identifiers)")
+                return None, []
+
+            df['timestamp'] = pd.to_datetime(df['timestamp'], format='mixed', errors='coerce')
             df = df.dropna(subset=['timestamp'])
             df = df.sort_values('timestamp')
 
