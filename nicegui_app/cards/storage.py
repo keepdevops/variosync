@@ -43,24 +43,49 @@ def create_storage_card(panels_grid):
             
             def show_download_format_dialog(file_key: str):
                 """Show dialog to download file in different formats."""
+                logger.debug(f"[show_download_format_dialog] Opening dialog for: {file_key}")
                 try:
+                    # Validate file key
+                    if not file_key:
+                        logger.error("[show_download_format_dialog] Empty file key")
+                        ui.notify("Invalid file key", type="negative")
+                        return
+
                     app = get_app_instance()
+                    if not app or not app.storage:
+                        logger.error("[show_download_format_dialog] App or storage not available")
+                        ui.notify("Storage not available", type="negative")
+                        return
+
                     file_data = app.storage.load(file_key)
                     if not file_data:
+                        logger.error(f"[show_download_format_dialog] Could not load file: {file_key}")
                         ui.notify(f"Could not load file: {file_key}", type="negative")
                         return
-                    
+
+                    data_size = len(file_data)
+                    logger.info(f"[show_download_format_dialog] Loaded {data_size} bytes for: {file_key}")
+
                     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=Path(file_key).suffix)
                     temp_file.write(file_data)
                     temp_file.close()
-                    
+                    logger.debug(f"[show_download_format_dialog] Created temp file: {temp_file.name}")
+
                     try:
                         loader = FileLoader()
                         records = loader.load(temp_file.name)
-                        
+
+                        if records is None:
+                            logger.error(f"[show_download_format_dialog] FileLoader returned None for: {file_key}")
+                            ui.notify("Failed to parse file", type="negative")
+                            return
+
                         if not records:
+                            logger.warning(f"[show_download_format_dialog] No records in file: {file_key}")
                             ui.notify("No data found in file", type="warning")
                             return
+
+                        logger.info(f"[show_download_format_dialog] Loaded {len(records)} records for download")
                         
                         with ui.dialog() as download_dialog, ui.card().classes("w-full max-w-lg"):
                             ui.label(f"📥 Download: {Path(file_key).name}").classes("text-xl font-semibold mb-4")
@@ -152,26 +177,52 @@ def create_storage_card(panels_grid):
             
             def show_data_editor(file_key: str):
                 """Show data editor/cleaner dialog."""
+                logger.debug(f"[show_data_editor] Opening editor for: {file_key}")
                 try:
+                    # Validate file key
+                    if not file_key:
+                        logger.error("[show_data_editor] Empty file key")
+                        ui.notify("Invalid file key", type="negative")
+                        return
+
                     app = get_app_instance()
+                    if not app or not app.storage:
+                        logger.error("[show_data_editor] App or storage not available")
+                        ui.notify("Storage not available", type="negative")
+                        return
+
                     file_data = app.storage.load(file_key)
                     if not file_data:
+                        logger.error(f"[show_data_editor] Could not load file: {file_key}")
                         ui.notify(f"Could not load file: {file_key}", type="negative")
                         return
-                    
+
+                    data_size = len(file_data)
+                    logger.info(f"[show_data_editor] Loaded {data_size} bytes for: {file_key}")
+
                     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=Path(file_key).suffix)
                     temp_file.write(file_data)
                     temp_file.close()
-                    
+                    logger.debug(f"[show_data_editor] Created temp file: {temp_file.name}")
+
                     try:
                         loader = FileLoader()
                         records = loader.load(temp_file.name)
-                        
+
+                        if records is None:
+                            logger.error(f"[show_data_editor] FileLoader returned None for: {file_key}")
+                            ui.notify("Failed to parse file", type="negative")
+                            return
+
                         if not records:
+                            logger.warning(f"[show_data_editor] No records in file: {file_key}")
                             ui.notify("No data found in file", type="warning")
                             return
-                        
+
+                        logger.info(f"[show_data_editor] Loaded {len(records)} records for editing")
+
                         df = pd.DataFrame(records)
+                        logger.debug(f"[show_data_editor] DataFrame shape: {df.shape}, columns: {list(df.columns)}")
                         
                         with ui.dialog() as editor_dialog, ui.card().classes("w-full max-w-6xl max-h-[90vh] overflow-auto"):
                             ui.label(f"✏️ Data Editor: {Path(file_key).name}").classes("text-xl font-semibold mb-4")
@@ -278,48 +329,112 @@ def create_storage_card(panels_grid):
 
             def show_data_visualizer(file_key: str):
                 """Show enhanced data visualization in a movable, resizable card."""
+                logger.debug(f"[show_data_visualizer] Starting visualization for file: {file_key}")
                 try:
+                    # Validate file key
+                    if not file_key:
+                        logger.error("[show_data_visualizer] Empty file key provided")
+                        ui.notify("Invalid file key", type="negative")
+                        return
+
                     app = get_app_instance()
+                    if not app or not app.storage:
+                        logger.error("[show_data_visualizer] App or storage not available")
+                        ui.notify("Storage not available", type="negative")
+                        return
+
+                    logger.debug(f"[show_data_visualizer] Loading file from storage: {file_key}")
                     file_data = app.storage.load(file_key)
+
                     if not file_data:
+                        logger.error(f"[show_data_visualizer] Could not load file data for: {file_key}")
                         ui.notify(f"Could not load file: {file_key}", type="negative")
+                        return
+
+                    # Log file data info
+                    data_size = len(file_data) if file_data else 0
+                    logger.info(f"[show_data_visualizer] Loaded {data_size} bytes from storage for: {file_key}")
+
+                    if data_size == 0:
+                        logger.warning(f"[show_data_visualizer] File is empty: {file_key}")
+                        ui.notify("File is empty", type="warning")
                         return
 
                     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=Path(file_key).suffix)
                     temp_file.write(file_data)
                     temp_file.close()
+                    logger.debug(f"[show_data_visualizer] Created temp file: {temp_file.name}")
 
                     try:
                         loader = FileLoader()
                         records = loader.load(temp_file.name)
 
+                        if records is None:
+                            logger.error(f"[show_data_visualizer] FileLoader returned None for: {file_key}")
+                            ui.notify("Failed to parse file", type="negative")
+                            return
+
                         if not records:
+                            logger.warning(f"[show_data_visualizer] No records found in file: {file_key}")
                             ui.notify("No data found in file", type="warning")
                             return
 
+                        logger.info(f"[show_data_visualizer] Loaded {len(records)} records from: {file_key}")
+
+                        # Validate records structure
+                        if not isinstance(records, list):
+                            logger.error(f"[show_data_visualizer] Records is not a list: {type(records)}")
+                            ui.notify("Invalid data format", type="negative")
+                            return
+
+                        # Log sample record
+                        if len(records) > 0 and isinstance(records[0], dict):
+                            sample_keys = list(records[0].keys())
+                            logger.debug(f"[show_data_visualizer] Sample record keys: {sample_keys[:10]}")
+
                         expanded_records = []
+                        expansion_errors = 0
                         for record in records:
-                            expanded = {}
-                            for key, value in record.items():
-                                if key != "measurements":
-                                    expanded[key] = value
-                            if "measurements" in record and isinstance(record["measurements"], dict):
-                                for m_key, m_value in record["measurements"].items():
-                                    expanded[m_key] = m_value
-                            else:
-                                expanded.update(record)
-                            expanded_records.append(expanded)
+                            try:
+                                expanded = {}
+                                for key, value in record.items():
+                                    if key != "measurements":
+                                        expanded[key] = value
+                                if "measurements" in record and isinstance(record["measurements"], dict):
+                                    for m_key, m_value in record["measurements"].items():
+                                        expanded[m_key] = m_value
+                                else:
+                                    expanded.update(record)
+                                expanded_records.append(expanded)
+                            except Exception as e:
+                                expansion_errors += 1
+                                logger.debug(f"[show_data_visualizer] Error expanding record: {e}")
+
+                        if expansion_errors > 0:
+                            logger.warning(f"[show_data_visualizer] {expansion_errors} records failed to expand")
+
+                        logger.debug(f"[show_data_visualizer] Expanded {len(expanded_records)} records")
 
                         df = pd.DataFrame(expanded_records)
+                        logger.debug(f"[show_data_visualizer] DataFrame shape: {df.shape}, columns: {list(df.columns)}")
 
                         if 'timestamp' in df.columns:
+                            original_count = len(df)
                             df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
                             df = df.sort_values('timestamp')
+                            invalid_count = df['timestamp'].isna().sum()
                             df = df.dropna(subset=['timestamp'])
+                            logger.debug(f"[show_data_visualizer] Timestamp processing: {original_count} -> {len(df)} records ({invalid_count} invalid)")
+                        else:
+                            logger.warning(f"[show_data_visualizer] No 'timestamp' column in data")
+                            logger.debug(f"[show_data_visualizer] Available columns: {list(df.columns)}")
 
                         if len(df) == 0:
+                            logger.warning(f"[show_data_visualizer] No valid data points after processing: {file_key}")
                             ui.notify("No valid data points found after processing", type="warning")
                             return
+
+                        logger.info(f"[show_data_visualizer] Ready to visualize {len(df)} data points")
 
                         # Generate unique card ID
                         import time
@@ -578,15 +693,28 @@ def create_storage_card(panels_grid):
             
             def refresh_storage():
                 """Refresh storage browser."""
+                logger.debug("[refresh_storage] Starting storage refresh")
                 try:
                     app = get_app_instance()
+                    if not app:
+                        logger.error("[refresh_storage] App instance not available")
+                        ui.notify("App not available", type="negative")
+                        return
+
+                    if not app.storage:
+                        logger.error("[refresh_storage] Storage not available")
+                        ui.notify("Storage not configured", type="negative")
+                        return
+
                     if app.storage:
                         keys = app.storage.list_keys()[:100]
+                        logger.info(f"[refresh_storage] Found {len(keys)} files in storage")
                         rows = []
-                        
+
                         storage_files_container.clear()
-                        
+
                         if not keys:
+                            logger.debug("[refresh_storage] Storage is empty")
                             with storage_files_container:
                                 ui.label("No files in storage").classes("text-gray-500")
                         
@@ -634,17 +762,13 @@ def create_storage_card(panels_grid):
                                         
                                         def make_download_handler(file_key=k):
                                             return lambda: show_download_format_dialog(file_key)
-                                        
+
                                         def make_edit_handler(file_key=k):
                                             return lambda: show_data_editor(file_key)
-                                        
-                                        def make_visualize_handler(file_key=k):
-                                            return lambda: show_data_visualizer(file_key)
-                                        
+
                                         with ui.row().classes("gap-2"):
                                             ui.button("📥 Download", icon="download", on_click=make_download_handler(k)).props("size=sm color=primary")
                                             ui.button("✏️ Edit", icon="edit", on_click=make_edit_handler(k)).props("size=sm color=secondary")
-                                            ui.button("📊 Visualize", icon="show_chart", on_click=make_visualize_handler(k)).props("size=sm color=accent")
                         
                         storage_table.rows = rows
                         ui.notify("Storage refreshed", type="info")

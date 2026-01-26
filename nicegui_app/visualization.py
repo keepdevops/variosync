@@ -102,6 +102,135 @@ def load_timeseries_data() -> Tuple[Optional[pd.DataFrame], List[Dict[str, Any]]
         return None, []
 
 
+def load_timeseries_from_storage_file(storage_key: str) -> Tuple[Optional[pd.DataFrame], List[Dict[str, Any]]]:
+    """
+    Load time-series data from a specific storage file.
+
+    Loads data from a storage file by key, parses it using FileLoader,
+    and returns a DataFrame suitable for visualization.
+
+    Args:
+        storage_key: The storage key for the file to load
+
+    Returns:
+        Tuple of (DataFrame, raw_records) or (None, []) if failed
+    """
+    import tempfile
+    import os
+    from pathlib import Path
+    from file_loader import FileLoader
+
+    logger.debug(f"[load_timeseries_from_storage_file] Starting load for storage key: {storage_key}")
+
+    try:
+        # Validate storage key
+        if not storage_key:
+            logger.error("[load_timeseries_from_storage_file] Empty storage key provided")
+            return None, []
+
+        app = get_app_instance()
+        if not app or not app.storage:
+            logger.error("[load_timeseries_from_storage_file] App or storage not available")
+            return None, []
+
+        # Load file data from storage
+        file_data = app.storage.load(storage_key)
+        if not file_data:
+            logger.error(f"[load_timeseries_from_storage_file] Could not load file: {storage_key}")
+            return None, []
+
+        data_size = len(file_data)
+        logger.info(f"[load_timeseries_from_storage_file] Loaded {data_size} bytes from storage for: {storage_key}")
+
+        if data_size == 0:
+            logger.warning(f"[load_timeseries_from_storage_file] File is empty: {storage_key}")
+            return None, []
+
+        # Create temp file for FileLoader
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=Path(storage_key).suffix)
+        temp_file.write(file_data)
+        temp_file.close()
+        logger.debug(f"[load_timeseries_from_storage_file] Created temp file: {temp_file.name}")
+
+        try:
+            loader = FileLoader()
+            records = loader.load(temp_file.name)
+
+            if records is None:
+                logger.error(f"[load_timeseries_from_storage_file] FileLoader returned None for: {storage_key}")
+                return None, []
+
+            if not records:
+                logger.warning(f"[load_timeseries_from_storage_file] No records found in file: {storage_key}")
+                return None, []
+
+            logger.info(f"[load_timeseries_from_storage_file] Loaded {len(records)} records from: {storage_key}")
+
+            # Validate records structure
+            if not isinstance(records, list):
+                logger.error(f"[load_timeseries_from_storage_file] Records is not a list: {type(records)}")
+                return None, []
+
+            if len(records) > 0 and isinstance(records[0], dict):
+                logger.debug(f"[load_timeseries_from_storage_file] Sample record keys: {list(records[0].keys())[:10]}")
+
+            # Expand measurements if present
+            expanded_records = []
+            for record in records:
+                try:
+                    expanded = {}
+                    for key, value in record.items():
+                        if key != "measurements":
+                            expanded[key] = value
+                    if "measurements" in record and isinstance(record["measurements"], dict):
+                        for m_key, m_value in record["measurements"].items():
+                            expanded[m_key] = m_value
+                    else:
+                        expanded.update(record)
+                    expanded_records.append(expanded)
+                except Exception as e:
+                    logger.debug(f"[load_timeseries_from_storage_file] Error expanding record: {e}")
+
+            logger.debug(f"[load_timeseries_from_storage_file] Expanded {len(expanded_records)} records")
+
+            # Convert to DataFrame
+            df = pd.DataFrame(expanded_records)
+            logger.debug(f"[load_timeseries_from_storage_file] DataFrame shape: {df.shape}, columns: {list(df.columns)}")
+
+            # Process timestamps
+            if 'timestamp' in df.columns:
+                original_count = len(df)
+                df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+                df = df.sort_values('timestamp')
+                invalid_count = df['timestamp'].isna().sum()
+                df = df.dropna(subset=['timestamp'])
+                logger.debug(f"[load_timeseries_from_storage_file] Timestamp processing: {original_count} -> {len(df)} records ({invalid_count} invalid)")
+            else:
+                logger.warning(f"[load_timeseries_from_storage_file] No 'timestamp' column in data")
+                logger.debug(f"[load_timeseries_from_storage_file] Available columns: {list(df.columns)}")
+
+            if len(df) == 0:
+                logger.warning(f"[load_timeseries_from_storage_file] No valid data points after processing: {storage_key}")
+                return None, []
+
+            # Log available numeric columns for plotting
+            numeric_cols = list(df.select_dtypes(include=['number']).columns)
+            logger.debug(f"[load_timeseries_from_storage_file] Numeric columns available for plotting: {numeric_cols}")
+
+            logger.info(f"[load_timeseries_from_storage_file] Ready to visualize {len(df)} data points")
+            return df, records
+
+        finally:
+            try:
+                os.unlink(temp_file.name)
+            except:
+                pass
+
+    except Exception as e:
+        logger.error(f"[load_timeseries_from_storage_file] Error loading from storage file {storage_key}: {e}", exc_info=True)
+        return None, []
+
+
 def load_timeseries_from_file(file_path: str) -> Tuple[Optional[pd.DataFrame], List[Dict[str, Any]]]:
     """
     Load all time-series records from a file directly.

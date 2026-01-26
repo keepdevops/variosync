@@ -32,7 +32,13 @@ def get_panel_interactions_js() -> str:
             'plot': { w: 12, h: 6, title: '📊 Live Sync Metrics' },
             'upload': { w: 6, h: 5, title: '📤 Upload & Process Files' },
             'storage': { w: 6, h: 5, title: '💾 Storage Browser' },
-            'visualization': { w: 6, h: 6, title: '📈 Data Visualization' }
+            'visualization': { w: 6, h: 6, title: '📈 Data Visualization' },
+            'user_info': { w: 6, h: 5, title: '👤 User Information' },
+            'api_keys': { w: 6, h: 5, title: '🔑 API Keys' },
+            'search': { w: 6, h: 5, title: '🔍 Search' },
+            'payment': { w: 6, h: 5, title: '💳 Payment & Billing' },
+            'settings': { w: 6, h: 6, title: '⚙️ Settings' },
+            'download': { w: 6, h: 6, title: '⬇️ Download from API' }
         };
 
         // Counter for unique visualization card IDs

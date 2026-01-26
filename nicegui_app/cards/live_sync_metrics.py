@@ -9,6 +9,7 @@ from nicegui_app.state import get_state
 from nicegui_app.visualization import (
     load_timeseries_data,
     load_timeseries_from_file,
+    load_timeseries_from_storage_file,
     get_available_series,
     is_financial_data,
     get_available_metrics,
@@ -93,10 +94,23 @@ def create_live_sync_metrics_card(panels_grid):
             # Data source controls
             with ui.row().classes("w-full gap-4 items-center mb-2"):
                 data_source_select = ui.select(
-                    options=["storage", "file"],
+                    options=["storage", "storage_file", "file"],
                     label="Data Source",
                     value="storage"
                 ).classes("w-32")
+
+                # Storage file selector (for visualizing specific storage files)
+                storage_file_select = ui.select(
+                    options=[],
+                    label="Storage File",
+                    value=None,
+                    with_input=True
+                ).classes("flex-1")
+                storage_file_select.visible = False
+
+                refresh_storage_files_btn = ui.button("🔄", icon="refresh", color="secondary").props("size=sm")
+                refresh_storage_files_btn.visible = False
+                refresh_storage_files_btn.tooltip("Refresh storage files list")
 
                 file_path_input = ui.input(
                     label="File Path (JSON, Parquet, CSV)",
@@ -107,15 +121,42 @@ def create_live_sync_metrics_card(panels_grid):
                 load_file_button = ui.button("📂 Load File", icon="folder_open", color="secondary")
                 load_file_button.visible = False
 
+                def refresh_storage_files():
+                    """Refresh the list of storage files."""
+                    try:
+                        from nicegui_app import get_app_instance
+                        app = get_app_instance()
+                        if app and app.storage:
+                            keys = app.storage.list_keys()[:100]
+                            storage_file_select.options = keys if keys else []
+                            if keys and not storage_file_select.value:
+                                storage_file_select.value = keys[0]
+                            ui.notify(f"Found {len(keys)} storage files", type="info")
+                        else:
+                            storage_file_select.options = []
+                            ui.notify("Storage not available", type="warning")
+                    except Exception as e:
+                        logger.error(f"Error refreshing storage files: {e}")
+                        ui.notify(f"Error: {str(e)}", type="negative")
+
+                refresh_storage_files_btn.on_click(refresh_storage_files)
+
                 def on_data_source_change():
+                    is_storage_file = data_source_select.value == "storage_file"
                     is_file = data_source_select.value == "file"
+                    storage_file_select.visible = is_storage_file
+                    refresh_storage_files_btn.visible = is_storage_file
                     file_path_input.visible = is_file
                     load_file_button.visible = is_file
+                    # Auto-refresh storage files when switching to storage_file mode
+                    if is_storage_file and not storage_file_select.options:
+                        refresh_storage_files()
 
                 data_source_select.on('update:modelValue', on_data_source_change)
 
             # Store data source components in state
             state.set_component("dashboard.data_source_select", data_source_select)
+            state.set_component("dashboard.storage_file_select", storage_file_select)
             state.set_component("dashboard.file_path_input", file_path_input)
             state.set_state("dashboard.loaded_file_path", None)
 
@@ -223,8 +264,17 @@ def create_live_sync_metrics_card(panels_grid):
                     # Load data based on selected source
                     df = None
                     records = []
+                    storage_file_select = state.get_component("dashboard.storage_file_select")
+                    selected_storage_file = storage_file_select.value if storage_file_select else None
 
-                    if data_source and data_source.value == "file" and loaded_file_path:
+                    if data_source and data_source.value == "storage_file" and selected_storage_file:
+                        logger.info(f"[update_plot] Loading from storage file: {selected_storage_file}")
+                        df, records = load_timeseries_from_storage_file(selected_storage_file)
+                        if df is not None:
+                            logger.info(f"[update_plot] Loaded {len(df)} records from storage file: {selected_storage_file}")
+                        else:
+                            logger.warning(f"[update_plot] Failed to load data from storage file: {selected_storage_file}")
+                    elif data_source and data_source.value == "file" and loaded_file_path:
                         logger.info(f"[update_plot] Loading from file: {loaded_file_path}")
                         df, records = load_timeseries_from_file(loaded_file_path)
                         if df is not None:
@@ -468,6 +518,7 @@ def create_live_sync_metrics_card(panels_grid):
             metric_select.on('update:modelValue', update_plot)
             chart_type_select.on('update:modelValue', update_plot)
             chart_library_select.on('update:modelValue', update_plot)
-            
+            storage_file_select.on('update:modelValue', update_plot)
+
             refresh_button.on_click(refresh_plot)
             update_plot()

@@ -198,6 +198,13 @@ def dashboard_page(client):
         create_live_sync_metrics_card,
         create_upload_card,
         create_storage_card,
+        create_user_info_card,
+        create_api_keys_card,
+        create_search_card,
+        create_payment_card,
+        create_settings_card,
+        create_download_card,
+        create_conversion_card,
     )
     
     # Setup dashboard page (styling, meta tags, etc.)
@@ -228,11 +235,46 @@ def dashboard_page(client):
         create_storage_card(panels_grid)
         # Register storage refresh callback
         refresh_callbacks['storage'] = lambda: None  # Will be set by storage card
-    
+
+    def init_user_info_card():
+        """Initialize User Info card."""
+        create_user_info_card(panels_grid)
+
+    def init_api_keys_card():
+        """Initialize API Keys card."""
+        create_api_keys_card(panels_grid)
+
+    def init_search_card():
+        """Initialize Search card."""
+        create_search_card(panels_grid)
+
+    def init_payment_card():
+        """Initialize Payment card."""
+        create_payment_card(panels_grid)
+
+    def init_settings_card():
+        """Initialize Settings card."""
+        create_settings_card(panels_grid)
+
+    def init_download_card():
+        """Initialize Download card."""
+        create_download_card(panels_grid)
+
+    def init_conversion_card():
+        """Initialize Conversion card."""
+        create_conversion_card(panels_grid)
+
     card_initializers = {
         'plot': init_plot_card,
         'upload': init_upload_card,
         'storage': init_storage_card,
+        'user_info': init_user_info_card,
+        'api_keys': init_api_keys_card,
+        'search': init_search_card,
+        'payment': init_payment_card,
+        'settings': init_settings_card,
+        'download': init_download_card,
+        'conversion': init_conversion_card,
     }
     
     # Setup navbar with card initializers
